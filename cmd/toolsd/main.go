@@ -69,6 +69,7 @@ func main() {
 			os.Exit(1)
 		}
 		cfg.CSS = css
+		cfg.CSSFile = "theme/tools.css" // dev: re-read per request, no restart
 	} else {
 		static, err := fs.Sub(site.Web, "web/static")
 		if err != nil {

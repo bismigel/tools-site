@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/bismigel/tools-site/internal/tool"
@@ -22,8 +23,11 @@ type Config struct {
 	Templates fs.FS // paths start at the repo root: web/templates/...
 	Static    fs.FS // rooted at web/static
 	CSS       []byte
-	Log       *slog.Logger
-	Timeout   time.Duration
+	// CSSFile, when set in dev mode, is read on every request so an edited
+	// stylesheet appears on refresh without restarting the server.
+	CSSFile string
+	Log     *slog.Logger
+	Timeout time.Duration
 }
 
 // Server is the whole HTTP surface.
@@ -152,6 +156,12 @@ func (s *Server) robots(w http.ResponseWriter, r *http.Request) {
 func (s *Server) stylesheet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.Header().Set("Cache-Control", s.cacheControl())
+	if s.cfg.Dev && s.cfg.CSSFile != "" {
+		if data, err := os.ReadFile(s.cfg.CSSFile); err == nil {
+			_, _ = w.Write(data)
+			return
+		}
+	}
 	_, _ = w.Write(s.cfg.CSS)
 }
 

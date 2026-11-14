@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -610,5 +611,67 @@ func TestMetrics(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("metrics missing %q\n%s", want, body)
 		}
+	}
+}
+
+// The dev server must serve the stylesheet from disk on every request. It once
+// read the file once at startup, so CSS edits appeared stale — and no browser
+// test could catch it, because Playwright runs the *production* binary where the
+// CSS is embedded at build time.
+func TestDevStylesheetIsReadPerRequest(t *testing.T) {
+	dir := t.TempDir()
+	cssFile := filepath.Join(dir, "tools.css")
+	if err := os.WriteFile(cssFile, []byte("body{color:red}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reg := tool.NewRegistry()
+	if err := reg.Register(tool.NewSlugify()); err != nil {
+		t.Fatal(err)
+	}
+	srv, err := New(Config{
+		Registry:  reg,
+		Dev:       true,
+		Templates: os.DirFS("../.."),
+		Static:    os.DirFS("../../web/static"),
+		CSS:       []byte("body{color:red}"),
+		CSSFile:   cssFile,
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serve := func() string {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/css/tools.css", nil))
+		return rec.Body.String()
+	}
+
+	if got := serve(); !strings.Contains(got, "red") {
+		t.Fatalf("first read = %q", got)
+	}
+	if err := os.WriteFile(cssFile, []byte("body{color:blue}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := serve(); !strings.Contains(got, "blue") {
+		t.Fatalf("stylesheet was not re-read: %q", got)
+	}
+
+	// Production has no CSSFile and must serve the embedded bytes only.
+	prod, err := New(Config{
+		Registry:  reg,
+		Templates: os.DirFS("../.."),
+		Static:    os.DirFS("../../web/static"),
+		CSS:       []byte("body{color:green}"),
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	prod.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/css/tools.css", nil))
+	if got := rec.Body.String(); !strings.Contains(got, "green") || strings.Contains(got, "blue") {
+		t.Fatalf("prod served %q", got)
 	}
 }

@@ -877,6 +877,7 @@ failure is visible as an alert, not as a broken page.
 | policy | headers on every route; body limit → 413; panic → 500 + ~request_id~ |
 | a11y | labels, ~aria-describedby~, focus order, 360 px, 200 % zoom |
 | fixtures (~hire~) | 3×5 set properties on every prompt change |
+| dev-only behaviour | Go tests: ~dev.js~ referenced only with ~-dev~, ~/dev/reload~ 404 without it, and the stylesheet is re-read per request (it once was not, and no browser test could see it) |
 | WebMCP shim | ~scripts/webmcp.test.mjs~ under Node: no API / register once / execute text / error shape / /lab prefix |
 | WebMCP in a browser | ~e2e/webmcp.spec.ts~: stubbed modelContext in real Chromium — register once, execute text, isError, no fetch without the API |
 | end-to-end (Playwright) | ~e2e/~: desktop + mobile, JS and no-JS, htmx swap, server validation, dark mode, 360 px, JSON API, 404 |
