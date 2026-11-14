@@ -24,8 +24,16 @@ tool must check origin/CSRF token.
 coreutils. Smaller attack surface; the cost is that you cannot `exec sh` into it — use probes and
 logs instead.
 
+**ECB reference rate** — the European Central Bank's daily exchange rates, free and published on
+working days. Used here instead of a live feed because "right to within a day" is all a rate
+comparison needs (`docs/adr/0009-fx-at-build-time.md`).
+
 **emptyDir** — an ephemeral Kubernetes volume. Used here as `/tmp` because the root filesystem is
 read-only.
+
+**Enrichment** — adding or structuring information about a person. Here it means *paste the
+LinkedIn profile text, merge it with the CV, and show where they disagree* — not fetching data from
+other sources (`docs/adr/0010-profile-enrichment-paste-only.md`).
 
 **ESO / External Secrets Operator** — pulls secrets from Bitwarden into Kubernetes Secrets. This
 repo only ever commits an `ExternalSecret` reference, never a value.
@@ -63,8 +71,24 @@ its browser-facing sibling.
 code written against the new API works today. Chosen against, for now
 (`docs/adr/0004-webmcp-native-first.md`): it means shipping third-party code in front of the tools.
 
+**Provenance** — where a field in a merged profile came from: both sources agree, they conflict, only
+one mentions it, or neither does. Provenance is what makes a merged candidate profile checkable
+rather than authoritative.
+
+**Rate normalisation** — turning one quoted rate into comparable forms: £550/day → £2,750/week →
+£11,916.67/month → £143,000/year, in another currency if asked. The assumptions (hours per day,
+weeks per year) change the answer more than the exchange rate does, so they are shown on the page.
+
+**Redaction** — removing names, emails, phone numbers, links and addresses from a CV before it is
+sent to a model provider. Optional here (client decision), offered and warned about rather than
+enforced; it cannot reliably detect a name, and the UI says so.
+
 **Registry (tool)** — the in-memory list of `tool.Tool` values, built once at startup. The single
 source of truth for the form, the API, the manifest and MCP.
+
+**Scraping** — fetching a page and extracting data from it automatically. Rejected here: LinkedIn
+serves a login wall, prohibits it in its terms, and doing it reliably needs a stored session and a
+headless browser (`docs/adr/0010-profile-enrichment-paste-only.md`).
 
 **Slugify** — turn free text into a URL-safe slug: `Writing With a Full Stomach!` →
 `writing-with-a-full-stomach`. Chosen as the first tool because it needs no network, no secret and

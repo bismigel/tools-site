@@ -1,0 +1,1043 @@
+#+TITLE: tools-site — Technical Reference
+#+SUBTITLE: tools.ciceley.cc (tool host) and hire.ciceley.cc (recruiter assistant)
+#+AUTHOR: @bismigel
+#+DATE: 2026-11-14
+#+STARTUP: overview
+#+OPTIONS: toc:nil num:nil
+#+LATEX_HEADER: \usepackage[margin=2cm]{geometry}
+
+#+BEGIN_QUOTE
+This is the consolidated technical document for both applications. It is written in Org mode so that
+it can be read in Emacs, exported to PDF or HTML, and kept next to the code.
+
+*Precedence when documents disagree:* [[file:docs/adr/][ADRs]] → [[file:spec.md][spec.md]] → this file →
+[[file:docs/design/][docs/design/]]. If this file disagrees with an ADR or the spec, this file is
+wrong and must be updated in the same commit as the change that revealed it.
+
+*Audiences:* a non-engineer should read [[file:DESIGN.md][DESIGN.md]]; an engineer should read
+[[file:spec.md][spec.md]] for the contract and this file for the whole picture.
+#+END_QUOTE
+
+* Table of contents
+:PROPERTIES:
+:CUSTOM_ID: toc
+:END:
+#+TOC: headlines 3
+
+* 1. System overview
+:PROPERTIES:
+:CUSTOM_ID: overview
+:END:
+** 1.1 Two applications, one deployment pattern
+
+| Application | Host(s)                          | Repo                | Exposure        | State |
+|-------------+----------------------------------+---------------------+-----------------+-------|
+| tools-site  | tools.ciceley.cc                 | tools-site (public) | public          | none  |
+| tools-site  | tools.ciceley.cc/lab             | tools-site          | Cloudflare Access | none |
+| hire        | hire.ciceley.cc                  | hire (private)      | Cloudflare Access | none |
+
+Nothing in either application holds a database, a queue, or a server-side session. The browser holds
+any conversation state; the server sees one turn at a time.
+
+** 1.2 Topology
+
+#+BEGIN_EXAMPLE
+  browser / agent
+        │ HTTPS
+        ▼
+  ┌───────────────────────────────────────────────┐
+  │ Cloudflare                                    │
+  │  • TLS termination                            │
+  │  • Access (Zero Trust) on /lab* and hire.*    │
+  │  • per host:clientIP limit_req 40 r/s         │
+  │  • tunnel (remote-managed)                    │
+  └───────────────────────┬───────────────────────┘
+                          │ http://127.0.0.1:32080 (NodePort, loopback only)
+                          ▼
+  ┌───────────────────────────────────────────────┐
+  │ ingress-nginx, class nginx                    │
+  └───────┬───────────────────────────────┬───────┘
+          │ tools.ciceley.cc              │ hire.ciceley.cc
+          ▼                               ▼
+  ┌───────────────────────────┐   ┌───────────────────────────┐
+  │ tools-site  (2 pods)      │   │ hire  (2 pods)            │
+  │ • /, /t/{name}   public   │   │ • whole host gated        │
+  │ • /lab*, /api/lab* gated  │   │ • egress: model provider  │
+  │ • /api, /mcp, /metrics    │   │ • no egress otherwise     │
+  │ • egress: DNS only        │   └─────────────┬─────────────┘
+  └─────────────┬─────────────┘                 │
+                │  /mcp (public tools only)     │
+                └───────────────────────────────┘
+#+END_EXAMPLE
+
+** 1.3 Trust boundaries
+
+| Boundary                    | What crosses it                   | What is trusted                        |
+|-----------------------------+-----------------------------------+----------------------------------------|
+| Internet → Cloudflare       | everything                        | Cloudflare terminates TLS; Access decides identity |
+| Cloudflare → ingress-nginx  | HTTP, ~Cf-Access-Jwt-Assertion~   | nothing until the JWT is verified in-process |
+| ingress-nginx → app pods    | HTTP                              | the namespace is *not* trusted; any pod may forge headers |
+| app pod → model provider    | prompts, CV text                  | only ~hire~; named destination, ExternalSecret key |
+| app pod → cluster DNS       | DNS                               | the only allowed egress for ~tools-site~ |
+
+#+BEGIN_QUOTE
+The residual risk that is written down rather than hidden: NetworkPolicy is namespaced, so any pod in
+~apps~ can call either service and can set ~Cf-Access-*~ headers. The in-process JWT verification is
+what makes that survivable. Never authorise on the unsigned email header.
+#+END_QUOTE
+
+* 2. Repository layout
+:PROPERTIES:
+:CUSTOM_ID: layout
+:END:
+
+#+BEGIN_EXAMPLE
+tools-site/
+├── AGENTS.md                     agent/human rules; read first
+├── DESIGN.md                     readable design document (non-engineer)
+├── TECHNICAL.org                 this file
+├── spec.md                       testable contract (FR/NFR with IDs)
+├── assets.go                    //go:embed web/ + theme/tools.css (self-contained binary)
+├── flake.nix                     go, dart-sass, kustomize, kubeconform, jq, curl, watchexec (M1)
+├── Makefile                      css, dev, list, call, run, test, check, image
+├── scripts/dev.sh                make dev: watcher + sass --watch, one trap
+├── go.mod / go.sum
+├── cmd/toolsd/main.go            flags, registry wiring, graceful shutdown
+├── internal/tool/
+│   ├── tool.go                   Tool, Input, Values, Registry, Visibility, Result, Table
+│   ├── validate.go               Values → typed getters enforcing Input rules
+│   ├── form.go                   Inputs → control view model (no markup)
+│   ├── slugify.go                M1
+│   ├── rate_converter.go         M6 (embedded ECB rates)
+│   └── meeting_planner.go        M6 (embedded tzdata)
+├── internal/fx/
+│   ├── rates.json                dated ECB reference rates (CI-refreshed)
+│   └── fx.go                     load, cross-rate, staleness
+├── internal/web/
+│   ├── routes.go                 two mux subtrees (public, gated) + middleware
+│   ├── pages.go                  index, tool page, lab page
+│   ├── api.go                    /api/tools, /api/tools/{name}, /api/lab
+│   ├── mcp.go                    /mcp JSON-RPC (M7)
+│   ├── schema.go                 []Input → JSON Schema
+│   ├── render.go                 template sets; fragment vs full page
+│   ├── errors.go                 sentinel → status + safe message
+│   ├── auth.go                   Access JWT + service token verification
+│   └── middleware.go             recover, request-id, log, headers, limits, timeout
+├── web/
+│   ├── templates/                layout, index, tool, lab, 404, partials/
+│   └── static/                   css/, js/htmx.min.js, js/webmcp.js, fonts/, img/
+├── theme/
+│   ├── hugo-theme-stack/         submodule, pinned v4.0.3 — NEVER edited
+│   ├── site-scss/custom.scss     byte-copy of the blog palette
+│   └── tools.css                 generated by make css
+├── deploy/k8s/                   deployment, service, ingress, networkpolicy, pdb, configmap
+├── .github/workflows/            check.yml, release.yml, fx-refresh.yml
+└── docs/                         adr/, design/, spec/, checklists/, context/, glossary.md
+#+END_EXAMPLE
+
+#+BEGIN_QUOTE
+The ~hire~ repository mirrors the deploy/, .github/ and internal/web/ shape, with
+~internal/tools/~ holding its five capabilities and ~internal/model/~ holding the provider client.
+#+END_QUOTE
+
+* 3. Tool model
+:PROPERTIES:
+:CUSTOM_ID: model
+:END:
+** 3.1 Types
+
+#+BEGIN_SRC go
+type Visibility int
+
+const (
+    Public Visibility = iota
+    Gated
+)
+
+type Kind int
+
+const (
+    Text Kind = iota
+    Textarea
+    Number
+    Checkbox
+    Select
+)
+
+type Input struct {
+    Name        string   // ^[a-z][a-z0-9_]{0,31}$
+    Label       string
+    Kind        Kind
+    Help        string
+    Required    bool
+    Min, Max    int      // runes for text; value range for number
+    Options     []string // Select only
+    Suggestions []string // optional <datalist>; never affects validation
+    Default     string
+}
+
+type Tool struct {
+    Name        string // ^[a-z][a-z0-9_]{0,63}$ — no hyphens: same string on every surface
+    Summary     string // one sentence, <=120 chars, no trailing period
+    Description string
+    Visibility  Visibility
+    Inputs      []Input
+    Run         func(ctx context.Context, in Values) (Result, error)
+}
+
+type Tone int
+
+const (
+    ToneNormal Tone = iota
+    ToneEmphasis
+    ToneMuted
+)
+
+type Cell struct {
+    Text string
+    Tone Tone
+    Note string // e.g. "+1 day"
+}
+
+type Table struct {
+    Caption string
+    Columns []string
+    Rows    [][]Cell
+}
+
+type Result struct {
+    Title    string
+    Lines    []Line   // Text | KeyValue | Code | Warning
+    Table    *Table   // generic grid; no per-tool markup
+    Files    []File   // name + bytes, optional
+    JSON     any      // structured payload for /api and MCP
+    Warnings []string
+}
+#+END_SRC
+
+** 3.2 Invariants (startup fails, not a silent drop)
+
+1. Every ~Tool.Name~ matches ~^[a-z][a-z0-9_]{0,63}$~ and is unique.
+2. Every ~Input.Name~ matches ~^[a-z][a-z0-9_]{0,31}$~ and is unique within the tool.
+3. At most 20 inputs per tool.
+4. ~Select~ inputs have a non-empty ~Options~; ~Default~ (if set) is a member.
+5. ~Min <= Max~; number ranges are finite and bounded.
+6. A ~Gated~ tool is only reachable under ~/lab~ and ~/api/lab~.
+7. A tool that fetches at runtime is ~Gated~ and names its egress destination in
+   ~docs/design/security.md~ and the NetworkPolicy in the same commit.
+8. A tool may read build-time data (FX, tzdata) embedded in the binary; it may not fetch it (FR-1.10).
+
+** 3.3 Validation
+
+| Rule                         | Applies to        | Failure code |
+|------------------------------+-------------------+--------------|
+| Required field missing/blank | all kinds         | ~bad_input~  |
+| Length in runes < Min / > Max| Text, Textarea    | ~bad_input~  |
+| Numeric parse failure        | Number            | ~bad_input~  |
+| Value outside Min..Max       | Number            | ~bad_input~  |
+| Value not in Options         | Select            | ~bad_input~  |
+| Unknown field in JSON body   | /api, /mcp        | ~bad_input~  |
+| Body > 64 KiB                | every POST        | ~413~        |
+
+Validation runs *before* ~Run~. A ~Run~ function may assume its inputs are valid.
+
+** 3.4 One definition, seven surfaces
+
+| Surface        | Route / artefact                       | Derived from            |
+|----------------+----------------------------------------+-------------------------|
+| index          | ~GET /~, ~GET /lab~                    | ~Registry.All(visibility)~ |
+| tool page      | ~GET /t/{name}~, ~GET /lab/{name}~     | ~Tool.Inputs~ → HTML    |
+| htmx fragment  | ~POST /t/{name}~, ~POST /lab/{name}~   | ~result.html~ partial   |
+| manifest       | ~GET /api/tools~                       | ~Tool~ → JSON Schema    |
+| execute        | ~POST /api/tools/{name}~               | ~Tool.Run~ → Result JSON |
+| WebMCP         | ~web/static/js/webmcp.js~ over manifest | same manifest           |
+| MCP            | ~POST /mcp~ (~tools/list~, ~tools/call~) | same registry           |
+
+* 4. HTTP surface
+:PROPERTIES:
+:CUSTOM_ID: http
+:END:
+** 4.1 Routes
+
+#+NAME: routes
+| Route                | Method | Auth                          | Returns              | Notes |
+|----------------------+--------+-------------------------------+----------------------+-------|
+| ~/~                  | GET    | none                          | full page            | public index |
+| ~/t/{name}~          | GET    | none                          | full page            | 404 if gated or unknown |
+| ~/t/{name}~          | POST   | origin check                  | fragment if ~HX-Request~, else full page | validate → run |
+| ~/lab~               | GET    | Access JWT                    | full page            | 404 when Access is unconfigured (FR-4.3) |
+| ~/lab/{name}~        | GET    | Access JWT                    | full page            | gated tools only |
+| ~/lab/{name}~        | POST   | JWT + origin + CSRF           | fragment or full page | |
+| ~/api/tools~         | GET    | none*                         | JSON manifest        | *gated tools appended when the JWT is valid |
+| ~/api/tools/{name}~  | POST   | origin check                  | JSON ~Result~        | public tools only; gated → 404 |
+| ~/api/lab/{name}~    | POST   | JWT + CSRF                    | JSON ~Result~        | gated tools |
+| ~/mcp~               | POST   | none for public; JWT or service token for gated | JSON-RPC | M7 |
+| ~/healthz~           | GET    | none                          | ~ok~                 | liveness; no dependencies |
+| ~/readyz~            | GET    | none                          | ~ok~ / 503           | registry + templates loaded; JWKS cached or fetchable (≤2 s) |
+| ~/metrics~           | GET    | none (NetworkPolicy restricts to ~monitoring~) | Prometheus text | M3 |
+| ~/static/*~          | GET    | none                          | bytes                | immutable cache, versioned query |
+| ~/robots.txt~        | GET    | none                          | text                 | allow all |
+| anything else        | *      | —                             | themed 404           | |
+
+** 4.2 Middleware order
+
+#+BEGIN_SRC text
+recover → request-id → access log → security headers → body limit (64 KiB)
+        → per-route timeout → route handler
+#+END_SRC
+
+- ~request-id~ uses ~CF-Ray~ when present, otherwise a generated ID; it is echoed in error bodies and
+  every log line.
+- ~recover~ returns a ~500~ envelope with the ~request_id~; stack traces go to the log only.
+- Timeouts: 5 s default, 10 s for outbound tools; the context is cancelled before ~Run~ returns.
+
+** 4.3 JSON shapes
+
+#+BEGIN_SRC json
+// GET /api/tools
+{
+  "tools": [
+    {
+      "name": "rate_converter",
+      "description": "Convert a rate between currencies and periods.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "amount":   { "type": "number", "minimum": 0.01, "maximum": 10000000 },
+          "currency": { "type": "string", "enum": ["GBP", "EUR", "USD"] },
+          "period":   { "type": "string", "enum": ["hour", "day", "week", "month", "year"] }
+        },
+        "required": ["amount", "currency", "period"]
+      }
+    }
+  ]
+}
+#+END_SRC
+
+#+BEGIN_SRC json
+// POST /api/tools/{name} — success
+{
+  "title": "£550.00 per day",
+  "lines": [{ "kind": "key_value", "key": "Annual", "value": "£126,500.00" }],
+  "table": { "caption": "Same money, five periods", "columns": ["Period", "GBP", "EUR"], "rows": [] },
+  "warnings": ["ECB reference rate from 2026-11-13 (daily, not live)"],
+  "request_id": "8f2c1a4e9b7d3c60"
+}
+#+END_SRC
+
+#+BEGIN_SRC json
+// error envelope — every non-2xx JSON response
+{
+  "error": {
+    "code": "bad_input",
+    "message": "Amount must be greater than zero.",
+    "request_id": "8f2c1a4e9b7d3c60"
+  }
+}
+#+END_SRC
+
+#+NAME: error-codes
+| Code           | HTTP | Meaning |
+|----------------+------+---------|
+| ~bad_input~    | 200 (HTML) / 400 (JSON) | validation failed; HTML re-renders the form with ~data-invalid~ |
+| ~not_found~    | 404  | unknown tool or wrong zone |
+| ~unauthorized~ | 401  | missing/invalid JWT or service token |
+| ~forbidden~    | 403  | origin/CSRF check failed |
+| ~timeout~      | 504  | tool exceeded its context deadline |
+| ~upstream~     | 502  | outbound provider failed (~hire~ only) |
+| ~busy~         | 503  | per-tool concurrency cap reached; includes ~Retry-After~ |
+| ~too_large~    | 413  | body over 64 KiB |
+| ~internal~     | 500  | recovered panic or unexpected error |
+
+** 4.4 htmx and no-JS contract
+
+- Form: ~<form method="post" action="/t/{name}" hx-post="/t/{name}" hx-target="#result"
+  hx-swap="innerHTML" hx-indicator="#busy">~
+- With ~HX-Request: true~ the handler returns the ~#result~ partial only; otherwise a full page.
+- Validation failures return *200* with ~data-invalid~ on the form and a visible summary — for both
+  htmx and no-JS. htmx does not swap 4xx bodies by default, and two code paths for one outcome is a
+  bug waiting to happen (spec FR-2.4).
+- No inline ~hx-on~, no inline ~style=~: the CSP is ~'self'~ only.
+- Every page and every form works with JavaScript disabled (FR-2.6).
+
+* 5. Tool contracts
+:PROPERTIES:
+:CUSTOM_ID: tools
+:END:
+** 5.1 slugify (public, M1)
+
+- *Input:* ~text~ — Textarea, required, 1–5,000 runes.
+- *Algorithm:*
+  1. Unicode NFKD, drop combining marks (~Crème~ → ~creme~).
+  2. Lowercase (no locale-specific rules).
+  3. Replace runs outside ~[a-z0-9]~ with a single ~-~.
+  4. Trim and collapse leading/trailing/repeated ~-~.
+  5. Truncate to 80 runes, then trim a trailing ~-~ again.
+  6. Empty result → ~bad_input~ ("Nothing to slugify").
+- *Deliberately not:* ~&~→~and~, stopword removal, non-Latin transliteration, uniqueness suffixes.
+
+#+NAME: slugify-vectors
+| Input                     | Expected |
+|---------------------------+----------|
+| ~Hello, World!~           | ~hello-world~ |
+| ~  Multiple   spaces  ~   | ~multiple-spaces~ |
+| ~Crème Brûlée~            | ~creme-brulee~ |
+| ~--Already--Slugged--~    | ~already-slugged~ |
+| ~a~ × 200                 | 80 chars, no trailing ~-~ |
+| ~!!!~                     | ~bad_input~ |
+| ~日本語~                   | ~bad_input~ (documented, not a crash) |
+
+** 5.2 rate_converter (public, M6 — non-negotiable)
+
+*Inputs*
+
+| Input           | Kind   | Required | Rules | Default |
+|-----------------+--------+----------+-------+---------|
+| ~amount~        | Number | yes      | 0.01 – 10,000,000 | — |
+| ~currency~      | Select | yes      | ECB-supported currency | GBP |
+| ~period~        | Select | yes      | hour, day, week, month, year | day |
+| ~target~        | Select | yes      | ECB-supported currency | GBP |
+| ~basis~         | Select | no       | contractor = 8h × 5d × 46wk; employee = 7.5h × 5d × 47wk; custom | contractor |
+| ~hours_per_day~ | Number | no       | 1–24 | 8 |
+| ~days_per_week~ | Number | no       | 1–7 | 5 |
+| ~weeks_per_year~| Number | no       | 1–52 | 46 |
+
+*Math*
+
+#+BEGIN_SRC text
+hours_per_year = hours_per_day × days_per_week × weeks_per_year
+hourly         = amount / period_hours            (period_hours: hour=1, day=hpd, week=hpd×dpw,
+                                                   month=hours_per_year/12, year=hours_per_year)
+daily          = hourly × hours_per_day
+weekly         = daily  × days_per_week
+monthly        = annual / 12
+annual         = hourly × hours_per_year
+
+converted = amount × rate[target] / rate[source]   (ECB rates are units per EUR; EUR = 1.0)
+#+END_SRC
+
+Rounding: compute at full precision, round half-up for display to 2 decimals; never round
+intermediate values.
+
+*FX pipeline*
+
+1. ~.github/workflows/fx-refresh.yml~ fetches the ECB daily XML on a schedule.
+2. It writes ~internal/fx/rates.json~ with ~base~, ~date~, ~source~, ~rates~, and commits when changed.
+3. The binary embeds the file; the tool never fetches at runtime (ADR-0009).
+4. The page always displays the rate date. Older than 7 days → warning line + monitoring alert; the
+   page still works.
+
+*Failure modes*
+
+| Condition | Result |
+|-----------+--------|
+| amount ≤ 0 or > 10,000,000 | ~bad_input~ |
+| currency not in the file | ~bad_input~ with the supported list |
+| target == currency | works; rate 1.0, no special case |
+| hours/days/weeks out of range | ~bad_input~ |
+| FX file older than 7 days | result + warning, alert fired |
+
+#+NAME: rate-vectors
+| Input | Expected |
+|-------+----------|
+| £550/day, 8h·5d·46wk, target GBP | hourly 68.75, weekly 2,750.00, monthly 10,541.67, annual 126,500.00 |
+| £550/day, target EUR at 1.1723 | daily €644.77, annual €148,295.95 |
+| €85/hour, employee basis (7.5h·5d·47wk) | annual 29,962.50, monthly 2,496.88, daily 637.50 |
+| $150,000/year, contractor basis | hourly 81.52 |
+| ~amount=0~ | ~bad_input~ |
+
+** 5.3 meeting_planner (public, M6 — non-negotiable)
+
+*Inputs*
+
+| Input        | Kind   | Required | Rules | Default |
+|--------------+--------+----------+-------+---------|
+| ~cities~     | Text   | yes      | 2–6, comma-separated, matched against an embedded IANA list with aliases | London |
+| ~date~       | Text   | yes      | ISO date, today ± 366 days | today |
+| ~work_start~ | Text   | no       | HH:MM, interpreted in *each city's* local time | 09:00 |
+| ~work_end~   | Text   | no       | HH:MM, after ~work_start~ | 17:00 |
+| ~length~     | Select | no       | 30, 45, 60 minutes | 60 |
+
+*Algorithm*
+
+1. Resolve each name to an IANA zone (~time.LoadLocation~); unknown → ~bad_input~ naming the offender.
+2. The first city is the *anchor*: it fixes the 24 rows and which calendar day is shown.
+3. For each hour 00:00–23:00 in the anchor's local day, compute the instant, then format it in every
+   city's zone. A cell whose local date differs gets a ~+1~ / ~−1~ note.
+4. Mark a cell *working* when the city's own local time is within ~[work_start, work_end)~.
+5. Verdict = maximal contiguous run of hours where *all* cities are working, and the run is at least
+   ~length~. Express it in anchor time and in each city's time.
+6. No qualifying run → say so, and name the closest near-miss (fewest cities outside their window).
+7. If any city has a UTC-offset transition on the date, add a warning naming the city and the change.
+
+*Output order:* verdict line → grid (~Table~) → caveats. On narrow screens the grid scrolls inside
+its own card; the page never scrolls sideways.
+
+*Limits:* 2–6 cities (readability and output size), one date, no attendee availability, no calendar
+integration, no scheduling.
+
+#+NAME: planner-vectors
+| Scenario | Expected |
+|----------+----------|
+| London + New York, a normal Monday, 09:00–17:00 | overlap 14:00–17:00 London = 09:00–12:00 New York (3 h) |
+| London + Sydney, same window | no overlap; near-miss named in both zones |
+| London + New York on a US DST transition date | correct grid + a DST warning |
+| 1 city / 7 cities | ~bad_input~ |
+| unknown city name | ~bad_input~ naming the value |
+| date 2 years out | ~bad_input~ |
+
+** 5.4 hire capabilities (private, M9)
+
+/All five are registry tools with JSON endpoints; the chat UI (M10) is only another client./
+
+*** merge_profile
+
+- *Inputs:* ~cv_text~ (Textarea, required), ~profile_text~ (Textarea, required),
+  ~profile_url~ (Text, optional — validated and echoed as a source link, *never fetched*).
+- *Output:* a ~Table~ with one row per field — CV wording, profile wording, status — plus a
+  discrepancy list.
+- *Provenance states:* ~agreed~, ~conflict~, ~single_source~, ~missing~.
+- *Fields:* name, headline, current role, employers with dates, education, certifications, skills,
+  location.
+- *Discrepancy kinds:* date overlap, employment gap > 6 months, title mismatch, employer-name
+  variant, current-role mismatch, field present in one source only.
+- *Hard rule:* it does not pick a winner. A conflict is surfaced, never resolved by the model.
+- *Rejected:* fetching the URL (LinkedIn serves a signed-out shell; ~robots.txt~ is ~Disallow: /~ for
+  ~User-Agent: *~), scraping, stored sessions, vendor enrichment APIs (ADR-0010).
+
+*** screen_candidate
+
+- *Inputs:* ~job_description~ (Textarea), ~candidate~ (Textarea — the merged profile or the CV),
+  ~seniority~ (Select, optional).
+- *Output:* ~verdict~ ∈ {~strong_fit~, ~worth_a_call~, ~not_a_fit~, ~insufficient~}; rubric rows of
+  {requirement, status ∈ {met, partial, not_evidenced}, quote from the candidate text}; gaps;
+  ~not_stated~ list.
+- *Hard rules:* no bare numeric score; every ~met~/~partial~ carries a verbatim quote; no invented
+  employer, title, date or qualification; silence becomes ~not_stated~, not a guess.
+
+*** interview_kit
+
+- *Inputs:* the screening result (JSON), ~focus~ (Text, optional).
+- *Output:* 5–10 questions; each tagged with the gap it probes and what it is testing.
+- *Hard rule:* at least one question per gap, no generic question lists.
+
+*** draft_email
+
+- *Inputs:* ~decision~ (Select: next step / hold / reject), ~reasons~ (Textarea), ~tone~ (Select).
+- *Output:* subject + body.
+- *Hard rules:* no invented facts, no promises about salary or dates, never sends anything.
+
+*** redact_cv (optional)
+
+- *Input:* ~text~.
+- *Output:* the same text with emails, phone numbers, URLs, LinkedIn URLs and postcodes replaced by
+  ~[redacted]~, plus a count of what was removed.
+- *Known limit, stated in the UI:* names cannot be detected reliably.
+
+* 6. API-first contract and MCP
+:PROPERTIES:
+:CUSTOM_ID: api
+:END:
+** 6.1 The contract rules
+
+1. Every capability has a JSON endpoint; an HTML-only capability is a defect (FR-8.1).
+2. Shapes are the external contract: ~inputSchema~, ~Result~, the error envelope (FR-8.2).
+3. Changes are *additive only* — a new optional input, a new result field, a new tool. A breaking
+   change needs a new path and an ADR (FR-8.3). No ~/v1~ yet: one consumer, additive rule, revisit
+   when a consumer cannot be updated in lockstep.
+4. Manifest and schemas are generated from the registry, never hand-written or cached at build (FR-8.4).
+5. HTML and JSON return the same result; a divergence is a renderer bug (FR-8.5).
+6. API-first ≠ JavaScript-first: no capability may require a browser (FR-8.6).
+
+** 6.2 MCP (M7)
+
+#+BEGIN_SRC json
+// POST /mcp — tools/list
+{ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }
+
+// POST /mcp — tools/call
+{ "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+  "params": { "name": "slugify", "arguments": { "text": "Hello, World!" } } }
+#+END_SRC
+
+- ~tools/list~ advertises public tools to anonymous callers; gated tools only with a valid Access JWT
+  or service token (FR-9.2).
+- Schemas are the same objects as the manifest (FR-9.3).
+- A gated ~tools/call~ without credentials → ~401~, not ~404~: the endpoint is known, the caller is
+  not authorised (FR-9.5).
+- Service tokens (~CF-Access-Client-Id~ / ~-Secret~) are accepted *only* on ~/mcp~ and ~/api/lab*~,
+  are never treated as a human identity in audit logs, and are rate-limited per token (FR-9.4).
+- ~tools/call~ returns the same ~Result~ JSON as ~POST /api/tools/{name}~ (FR-9.6).
+
+* 7. Security
+:PROPERTIES:
+:CUSTOM_ID: security
+:END:
+** 7.1 Threat model
+
+| Threat | Why it is real here | Primary control |
+|--------+---------------------+-----------------|
+| SSRF / open proxy | any future fetching tool | no runtime egress in v1; guarded client + ~Gated~ when introduced |
+| Abuse / cost | public tools are free compute | ingress ~limit_req~ 40 r/s; per-tool caps, timeouts, concurrency 4; assistant spend guard |
+| Auth bypass / header spoofing | any pod in ~apps~ can set headers | verify the signed JWT, never the email header; fail closed |
+| CSRF on gated POSTs | Access auth is a cookie | ~Sec-Fetch-Site~/~Origin~ + per-session CSRF token |
+| XSS via tool output | tool output is user-controlled text | ~html/template~ escaping, no raw-HTML field, strict CSP |
+| Secret leakage | model API key | ExternalSecret only; never logged, never in ~/api~ |
+| Supply chain | modules, htmx, base images | ~go.sum~, ~govulncheck~, digest pins, Renovate, no CDN |
+| Information disclosure | errors, logs, enumeration | sentinel errors, path templates in logs, gated tools 404 in the public zone |
+| Personal-data mishandling | CVs, LinkedIn text | no storage, no content logging, optional redaction, human decides |
+
+Out of scope, stated rather than pretended: DDoS beyond Cloudflare defaults, compromise of the
+cluster, and anything an actor with ~kubectl~ in ~apps~ can do.
+
+** 7.2 Gated-zone authentication
+
+#+BEGIN_SRC text
+1. Read Cf-Access-Jwt-Assertion. Missing            → 401
+2. Fetch JWKS from https://${CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs
+   cached 1 h; on unknown kid refetch, at most once per minute → still unknown → 401
+3. Verify RS256 signature                            → fail → 401
+4. aud == CF_ACCESS_AUD                              → fail → 401
+5. exp > now - 60 s (leeway), iat not in the future  → fail → 401
+6. iss matches the team domain                       → fail → 401
+7. sub/email used for audit logging only             (never for authorisation)
+#+END_SRC
+
+- ~CF_ACCESS_TEAM_DOMAIN~ and ~CF_ACCESS_AUD~ come from a ConfigMap; neither is secret.
+- If either is unset, the gated routes are *not mounted*: ~/lab*~ and ~/api/lab*~ return 404 and
+  startup logs one warning (FR-4.3). This is what makes deploying before Access is configured safe.
+- ~TOOLS_DEV_INSECURE=1~ bypasses verification locally, refuses to start when
+  ~KUBERNETES_SERVICE_HOST~ is set, and logs a warning per request.
+
+** 7.3 CSRF (gated POSTs)
+
+- Require ~Sec-Fetch-Site: same-origin~, or (when absent) an ~Origin~ equal to the configured base URL.
+- Require ~X-Tools-CSRF: <token>~; token = HMAC(session id from the JWT ~sub~, per-process secret,
+  10-minute validity), issued into the page and echoed by htmx via ~hx-headers~.
+- Failure → ~403~ plus a logged ~request_id~. Public POSTs skip the token (no ambient credential) but
+  keep the origin check.
+
+** 7.4 SSRF
+
+*In v1 there is no runtime outbound request at all.* FX rates are build-time (ADR-0009), tzdata is
+embedded, and the NetworkPolicy egress is DNS-only. When a fetching tool is eventually introduced:
+
+- scheme allowlist ~http~/~https~;
+- resolve, reject loopback/private/link-local/multicast/unspecified/ULA, *and dial the vetted IP*
+  (defeats DNS rebinding);
+- ≤ 3 redirects, re-vetted per hop;
+- 5 s total / 3 s connect; 2 MiB body cap; 4 MiB decompressed cap;
+- no proxy from the environment; fixed honest User-Agent;
+- gated visibility, a named egress destination, and a NetworkPolicy rule in the same commit;
+- honour the target's ~robots.txt~.
+
+** 7.5 Response headers (every response)
+
+#+BEGIN_SRC text
+Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self';
+  img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self';
+  base-uri 'none'; frame-ancestors 'none'
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+#+END_SRC
+
+HSTS is set at Cloudflare, not in-cluster. Fonts are self-hosted, so ~font-src 'self'~ holds.
+
+** 7.6 Input limits
+
+| Limit | Value |
+|-------+-------|
+| Request body | 64 KiB (~http.MaxBytesReader~) |
+| JSON decoding | ~DisallowUnknownFields~ |
+| Text length | counted in runes; per-field ~Min~/~Max~ |
+| Inputs per tool | 20 |
+| Tool timeout | 5 s (10 s outbound) |
+| Concurrency per tool | 4, then ~503~ + ~Retry-After~ |
+| Response body (outbound, future) | 2 MiB / 4 MiB decompressed |
+
+** 7.7 Logging
+
+Log fields: timestamp, ~request_id~, method, path *template*, status, duration, tool name, outcome,
+~cf_ray~, and for gated requests the JWT ~sub~. Never: query strings, tool input values, tool output,
+prompts, model answers. ~hire~ additionally logs token counts and spend, not content.
+
+** 7.8 Secrets and supply chain
+
+- Secrets only via ExternalSecret (Bitwarden): ~MODEL_API_KEY~ (hire), the service token (only if a
+  gated tool is ever called by ~hire~). Never in git, CI, ConfigMaps or logs.
+- ~go.sum~ committed; ~GOFLAGS=-mod=readonly~; ~GOTOOLCHAIN=local~; ~CGO_ENABLED=0~; ~-trimpath~;
+  ~-ldflags="-s -w"~.
+- Images pinned by digest; htmx vendored with a ~VERSION~ file; no CDN.
+- New dependencies require a row in the dependency table in ~docs/design/security.md~ in the same PR.
+
+** 7.9 Kubernetes hardening (both apps)
+
+#+BEGIN_SRC yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+containers:
+  - securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: ["ALL"] }
+    volumeMounts: [{ name: tmp, mountPath: /tmp }]
+#+END_SRC
+
+Plus ~automountServiceAccountToken: false~, requests == limits for memory, 2 replicas, PDB
+~minAvailable: 1~, topology spread across nodes, and no ~Namespace~ object (owned by
+~bakuran-gitops~).
+
+* 8. Data
+:PROPERTIES:
+:CUSTOM_ID: data
+:END:
+** 8.1 Exchange rates
+
+#+BEGIN_SRC json
+{
+  "base": "EUR",
+  "date": "2026-11-13",
+  "source": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+  "rates": { "EUR": 1.0, "GBP": 0.8531, "USD": 1.0789, "JPY": 164.20 }
+}
+#+END_SRC
+
+- Committed, dated, embedded. Refreshed by ~.github/workflows/fx-refresh.yml~ (scheduled + manual).
+- A failed refresh keeps the previous file: stale-but-dated beats broken. Alert on file age > 7 days.
+- Currencies outside the ECB set are reported as unsupported, never guessed.
+
+** 8.2 Time zones
+
+~import _ "time/tzdata"~ embeds the database in the binary. No host dependency, no tzdata package to
+patch, and ~CGO_ENABLED=0~ still works. DST is the database's problem, not ours — we only display the
+transition warning.
+
+** 8.3 Prompt fixtures (~hire~)
+
+- 3 job descriptions × 5 CVs, invented or the owner's own. No real candidate data in the repo.
+- Properties asserted, not golden strings: quotes for every claim, every gap named, no invented
+  facts, ~not_stated~ where the text is silent.
+- A prompt edit without a fixture run is an incomplete change.
+
+** 8.4 Personal data
+
+- Nothing is stored: no database, no server-side history, no uploaded files.
+- Nothing is logged beyond sizes, timings and token counts.
+- Redaction is optional (client decision), offered, tested, and warned about when contact details are
+  detected. Names cannot be detected reliably; the UI says so.
+- A LinkedIn profile is accepted only as pasted text; ~profile_url~ is cited, never fetched (ADR-0010).
+- A human sends every email; there is no automated rejection or bulk run.
+
+* 9. Deployment and operations
+:PROPERTIES:
+:CUSTOM_ID: deploy
+:END:
+** 9.1 Image
+
+#+BEGIN_SRC dockerfile
+# syntax=docker/dockerfile:1
+FROM golang:1.25-alpine@sha256:<pin> AS build
+WORKDIR /src
+ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly GOTOOLCHAIN=local
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -trimpath -ldflags="-s -w" -o /out/toolsd ./cmd/toolsd
+
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:<pin>
+COPY --from=build /out/toolsd /toolsd
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/toolsd", "-addr=:8080"]
+#+END_SRC
+
+No shell in the runtime image, therefore no ~HEALTHCHECK~; Kubernetes probes do that job.
+
+** 9.2 NetworkPolicy
+
+~tools-site~: ingress from ~ingress-nginx~; egress DNS only (UDP/TCP 53 to ~kube-system~).
+~hire~: the same, plus the model provider host:443 — never a bare ~to: []~.
+Add ~monitoring~ on ~:8080~ when ~/metrics~ is exposed (M3/M8).
+
+** 9.3 Edge, in this order
+
+1. Ingress live and answering over ~kubectl port-forward~.
+2. Tunnel hostname → ~http://127.0.0.1:32080~.
+3. Proxied CNAME to ~<tunnel>.cfargotunnel.com~.
+4. Access application (~/lab*~, ~/api/lab*~ for tools; whole host for hire).
+5. Add the hostname to ~ingress-host-check~'s hardcoded list.
+
+Reversed order produces a Cloudflare error page that reads like a broken application. A hostname with
+no Ingress returns 404 and looks fine from outside; the host-check CronJob exists because that
+happened.
+
+** 9.4 ArgoCD
+
+- ~deploy/k8s/~ (kustomize), one Application per app, namespace ~apps~.
+- The repo must be in the ~prod~ AppProject's ~sourceRepos~, or the sync fails with
+  ~InvalidSpecError~.
+- The image tag line in ~deployment.yaml~ is written only by ~release.yml~. Never hand-edit it.
+- ~syncPolicy~: automated, prune, selfHeal.
+
+** 9.5 Rollback
+
+| Situation | Action |
+|-----------+--------|
+| Bad image | revert the bump PR; ArgoCD syncs the previous tag |
+| Bad manifest | revert the ~deploy/k8s/~ commit, or ~kubectl rollout undo~ as a stop-gap |
+| Broken edge change | remove the tunnel hostname first, then DNS — offline cleanly, no 502s |
+| Site must go away | delete the Application (prune), then tunnel row, then DNS |
+
+** 9.6 Monitoring and alerts
+
+| Signal | Source | Alert |
+|--------+--------+-------|
+| 5xx rate | ~/metrics~ | > 2 % for 10 min |
+| p95 latency | ~/metrics~ | > 1 s for 10 min |
+| Pod not ready | kube-state | 2 min |
+| Ingress host broken | ~ingress-host-check~ CronJob | any |
+| FX file age | build metadata | > 7 days |
+| Assistant spend | ~hire~ counters | 80 % of monthly budget |
+| JWKS fetch failures | logs/metrics | repeated 401s on gated paths |
+
+* 10. CI/CD
+:PROPERTIES:
+:CUSTOM_ID: ci
+:END:
+** 10.1 ~check.yml~ (pull requests)
+
+#+BEGIN_QUOTE
+Shift left: the workflow runs ~scripts/ci.sh~, and ~make ci~ runs the same script locally. A green
+local run means a green PR apart from Docker and network differences. One source of truth, not two.
+#+END_QUOTE
+
+1. checkout (submodules recursive — the theme is needed for the CSS drift check);
+2. ~make css && git diff --exit-code theme/tools.css~;
+3. ~go vet ./...~;
+4. ~go test -race ./...~;
+5. ~go build ./...~;
+6. ~govulncheck ./...~;
+7. ~docker build~ the image;
+8. ~kustomize build deploy/k8s | kubeconform -strict -ignore-missing-schemas~.
+
+** 10.2 ~release.yml~ (push to ~main~)
+
+- ~paths-ignore~: ~deploy/*~, ~docs/*~, ~**.md~, ~theme/tools.css~ — without this, merging the bump
+  PR starts another release, which opens another bump PR, forever.
+- Tag ~main-<YYYYmmdd-HHMMSS>-<sha7>~ plus ~:latest~; push to GHCR.
+- Open a PR that updates the image line in ~deploy/k8s/deployment.yaml~ (never a direct push: GH013).
+- No auto-merge; no cluster credentials in CI; ~workflow_dispatch~ always available.
+
+** 10.3 ~fx-refresh.yml~
+
+Scheduled + manual; fetches the ECB file, rewrites ~internal/fx/rates.json~, commits on change. A
+failure is visible as an alert, not as a broken page.
+
+* 11. Testing
+:PROPERTIES:
+:CUSTOM_ID: testing
+:END:
+| Layer | What it proves |
+|-------+----------------|
+| unit, table-driven | validation, slugify vectors, rate math, planner algorithm, redaction patterns |
+| registry | startup fails on a bad tool (name, duplicates, select without options) |
+| router | every gated tool 404s under ~/t/~; every public tool 404s under ~/lab/~ |
+| render | fragment vs full page; ~<datalist>~; table rendering; escaping |
+| api | manifest shape, schema/registry equality, error envelope, ~no-store~ |
+| auth | forged email header → 401; expired/unknown-~kid~ → 401; dev bypass refuses in-cluster |
+| policy | headers on every route; body limit → 413; panic → 500 + ~request_id~ |
+| a11y | labels, ~aria-describedby~, focus order, 360 px, 200 % zoom |
+| fixtures (~hire~) | 3×5 set properties on every prompt change |
+| WebMCP | the matrix in ~docs/context/webmcp.md~ (no API / API + public / API + gated) |
+
+Definition of done for any milestone: the command in ~docs/plan.md~'s "done when" column is run and
+its output pasted into the PR body. Reading the code is not evidence.
+
+* 12. Budgets
+
+| Budget | Value |
+|--------+-------|
+| Pure tool p95 | < 20 ms |
+| Tool page p95 | < 50 ms |
+| Container memory | 96 MiB limit |
+| Assistant messages | 100/day |
+| Assistant spend | £25/month, alert 80 % |
+| Cold start | readiness within ~2 s |
+
+* 13. Decision log
+
+| ADR | Decision |
+|-----+----------|
+| [[file:docs/adr/0001-separate-repo.md][0001]] | separate repo from the Hugo blog |
+| [[file:docs/adr/0002-go-htmx.md][0002]] | Go + htmx, no front-end framework |
+| [[file:docs/adr/0003-per-tool-visibility.md][0003]] | visibility is a property of the tool; two mux subtrees |
+| [[file:docs/adr/0004-webmcp-native-first.md][0004]] | native WebMCP, no polyfill |
+| [[file:docs/adr/0005-theme-css-pinning.md][0005]] | theme submodule + copied palette + generated CSS |
+| [[file:docs/adr/0006-manifest-bump-via-pr.md][0006]] | image bumps arrive as a PR |
+| [[file:docs/adr/0007-api-first-mcp.md][0007]] | API-first, additive-only contract, MCP early, service tokens |
+| [[file:docs/adr/0008-hire-assistant-separate-app.md][0008]] | the assistant is a separate app, no storage, chat last |
+| [[file:docs/adr/0009-fx-at-build-time.md][0009]] | exchange rates at build time, never at runtime |
+| [[file:docs/adr/0010-profile-enrichment-paste-only.md][0010]] | paste-only profile enrichment; no scraping, no vendor APIs |
+
+* 14. Milestones
+:PROPERTIES:
+:CUSTOM_ID: milestones
+:END:
+
+| ID  | Work | Done when |
+|-----+------+-----------|
+| M1  | skeleton, theme, registry, ~Table~, ~slugify~, JSON endpoints, probes | ~make run~ serves the themed index and ~/api/tools/slugify~; ~make test~ green; slugify vectors pass |
+| M5  | WebMCP bridge | ~getTools()~ lists public tools; execute output equals the form output |
+| M2  | Dockerfile, CI | PR check builds the image; ~main~ publishes a tag and opens the bump PR |
+| M3  | k8s manifests, ArgoCD, basic metrics | pod Ready, port-forward 200, kubeconform clean, Prometheus scrapes |
+| M4  | tunnel, DNS, host check | ~https://tools.ciceley.cc~ 200 over Cloudflare; no ~IngressHostBroken~ |
+| M6  | ~rate_converter~, ~meeting_planner~ | both live, mobile, JS-off, shareable URL, FX date shown, DST handled |
+| M3b | Access + JWT verification | anonymous ~/lab~ challenged; forged email header 401; valid JWT 200 |
+| M7  | ~/mcp~ + service tokens | an MCP client lists and calls; gated call 401 without a token, 200 with |
+| M8  | full observability | dashboards, ~request_id~ search, spend and FX-age alerts |
+| M9  | ~hire~ v0, API only | each capability schema-valid on the fixtures; redaction offered; spend guard works |
+| M10 | ~hire~ chat UI | multi-turn session in the browser; nothing stored; wizard fallback passes |
+
+Row order is delivery order; IDs are historical and referenced by the checklists.
+
+* 15. Open questions
+
+| # | Question | Blocks | Position |
+|---+----------+--------+----------|
+| Q10 | Confirm the model name ("DeepSeek Flash" does not exist; ~deepseek-chat~ / ~deepseek-reasoner~ do) | M9 | default ~deepseek-chat~; config value, not a blocker |
+| Q14 | Blog menu link to the tools site | M4 | optional, last, one-line PR |
+| Q15 | Non-ECB currencies (NGN, PKR, …) | M6 | unsupported and labelled; a second source needs an ADR |
+| — | Service token for ~hire~ | M9 | only if ~hire~ ever calls a *gated* tool; v0 uses public tools |
+
+* 16. Risks
+
+| Risk | Impact | Mitigation |
+|------+--------+------------|
+| FX file goes stale | wrong-looking numbers | date shown on every result; alert at 7 days; refresh job with ~workflow_dispatch~ |
+| LinkedIn changes its pages | paste still works; the merge is unaffected | no dependency on their markup by design |
+| Model quality or price changes | assistant output or cost | provider behind config; fixtures catch regressions; spend cap |
+| Prompt drift | quiet quality loss | fixed 3×5 fixtures, prompt files versioned |
+| ArgoCD rejects the Application | no deploy | add the repo to ~sourceRepos~ before the first sync |
+| Missing hostname in host-check | invisible 404 | same PR adds the hostname |
+| JWKS endpoint outage | gated zone 401s | fail closed; public zone unaffected |
+| Two repos, one maintainer | drift | shared deploy pattern; this document lists both |
+| Real CVs pasted despite the warning | personal-data transfer | no storage, no logging, redaction offered; responsibility stated |
+
+* 17. Environment variables
+
+| Variable | App | Secret | Purpose |
+|----------+-----+--------+---------|
+| ~CF_ACCESS_TEAM_DOMAIN~ | both | no | JWKS/issuer origin |
+| ~CF_ACCESS_AUD~ | both | no | expected audience; absent → gated routes unmounted |
+| ~TOOLS_DEV_INSECURE~ | tools-site | no | local JWT bypass; refuses to start in-cluster |
+| ~BASE_URL~ | both | no | origin check and absolute links |
+| ~MODEL_BASE_URL~ | hire | no | provider endpoint (OpenAI-compatible) |
+| ~MODEL_NAME~ | hire | no | ~deepseek-chat~ by default |
+| ~MODEL_API_KEY~ | hire | *yes* | ExternalSecret only |
+| ~DAILY_MESSAGE_CAP~ | hire | no | default 100 |
+| ~MONTHLY_BUDGET_GBP~ | hire | no | default 25 |
+| ~FX_MAX_AGE_DAYS~ | tools-site | no | default 7 (warning + alert threshold) |
+
+* 18. Local development
+:PROPERTIES:
+:CUSTOM_ID: dev
+:END:
+** 18.1 The tension ~//go:embed~ creates
+
+Production wants a single self-contained binary. Development wants to see an edit without waiting.
+One variable (~-dev~) reconciles them, and no other code path branches on it:
+
+| Change | Mechanism | Restart? |
+|--------+-----------+----------|
+| Go source | ~watchexec -r -e go~ rebuilds and restarts (~1 s at this size) | yes |
+| Go template | parsed per request from the disk FS | no |
+| ~theme/site-scss/custom.scss~ | ~make css-watch~ re-runs the deterministic ~make css~, served from disk | no |
+| Static assets (js, img, fonts) | served from disk | no |
+
+In dev the filesystem root is the repo root; the embed FS mirrors the same paths, so ~/t/{name}~
+renders identically in both modes. ~-dev~ is the only switch.
+
+** 18.2 ~make dev~
+
+#+BEGIN_SRC makefile
+dev:            ## hot reload on :8080
+	@scripts/dev.sh
+
+css-watch:      ## re-run the full deterministic css build on change
+	watchexec -w theme/site-scss -w theme/hugo-theme-stack/assets/scss -- make css
+#+END_SRC
+
+#+BEGIN_SRC bash
+#!/usr/bin/env bash
+# scripts/dev.sh — one process group, Ctrl-C stops both
+set -euo pipefail
+trap 'kill 0' EXIT
+make css-watch &
+watchexec -r -e go -- go run ./cmd/toolsd -dev -addr=:8080
+#+END_SRC
+
+** 18.3 Guardrails (spec NFR-8.2, NFR-8.3)
+
+- ~-dev~ **refuses to start** when ~KUBERNETES_SERVICE_HOST~ is set. A dev build cannot be deployed
+  by accident, and the refusal is a startup error, not a warning.
+- ~/dev/reload~ (the SSE endpoint used for optional auto-refresh) and ~web/static/js/dev.js~ exist in
+  the binary but are **unreachable** when ~-dev~ is off: the route 404s and the ~<script>~ tag is not
+  rendered. Tests assert both, because "it is only compiled in" is not a control.
+- ~dev.js~ exposes ~window.__tools = { list, call }~ for console poking. It is never referenced by the
+  production layout.
+- The manifests never set ~-dev~; a review of ~deploy/k8s/deployment.yaml~ is the second guard.
+
+** 18.4 WebMCP as the debugging window (M5)
+
+1. ~make dev~, then open ~http://localhost:8080~ in a WebMCP-capable browser.
+2. ~navigator.modelContext.getTools?.()~ lists exactly the manifest's public tools — this is the
+   assertion that the manifest and the page agree.
+3. Execute a tool from the assistant and compare with the HTML form result; they must be textually
+   identical (FR-5.5), because both come from ~Result~.
+4. In the console, ~window.__tools.call('slugify', {text: 'Hello, World!'})~ uses the same endpoint as
+   the shim, so a failure tells you whether the problem is the tool or the browser bridge.
+
+Caveats, stated so nobody plans around them: WebMCP support is experimental and flag/origin-trial
+dependent; ~provideContext~ replaces the whole set on every page load; ~getTools()~ is optional and
+may be absent. None of this runs in CI.
+
+** 18.5 The no-browser path (NFR-8.5)
+
+#+BEGIN_SRC bash
+make list                                  # GET /api/tools | jq
+make call TOOL=slugify TEXT='Hello, World!' # POST /api/tools/slugify, prints the JSON Result
+curl -sS localhost:8080/api/tools | jq     # the manual version of the above
+#+END_SRC
+
+This is the fallback when the browser flag is unavailable, and it is the path CI uses. WebMCP is a
+convenience for humans, never the only way to verify a tool.
+
+** 18.6 What not to do
+
+- Do not render the reload script or ~dev.js~ in production. The test in NFR-8.3 is the guard, not
+  the comment.
+- Do not add a live-reload Go module. ~watchexec~ in the dev shell is 0 lines of runtime cost.
+- Do not make WebMCP the only verification path; see 18.5.
+- Do not run ~-dev~ against a shared or cluster address. It serves from disk and skips embedding;
+  that is exactly what you do not want in front of other people.
+
+* Appendix A: reference links
+
+- Contract: [[file:spec.md][spec.md]]
+- Readable design: [[file:DESIGN.md][DESIGN.md]]
+- Milestones: [[file:docs/plan.md][docs/plan.md]]
+- Security controls: [[file:docs/design/security.md][docs/design/security.md]]
+- Architecture: [[file:docs/design/architecture.md][docs/design/architecture.md]]
+- Deployment: [[file:docs/design/deployment.md][docs/design/deployment.md]]
+- CI: [[file:docs/design/ci.md][docs/design/ci.md]]
+- Estate facts: [[file:docs/context/homelab.md][docs/context/homelab.md]]
+- WebMCP: [[file:docs/context/webmcp.md][docs/context/webmcp.md]]
+- Glossary: [[file:docs/glossary.md][docs/glossary.md]]
+- Deploy checklist: [[file:docs/checklists/deploy.md][docs/checklists/deploy.md]]

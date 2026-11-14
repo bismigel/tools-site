@@ -3,6 +3,9 @@
 Tick in order. Each line is a command whose output you can paste into a PR body. If a step is not
 applicable yet, write why instead of deleting the line.
 
+> Order note (2026-11-14): §6 (M5, WebMCP) can be done any time after §1 and does not block §2–§5.
+> M7 (MCP), M9 and M10 (`hire`) get their own checklists when those milestones start.
+
 ## 0. Repo
 
 - [x] **repo created: <https://github.com/bismigel/tools-site> (public)** — 2026-11-12
@@ -66,7 +69,7 @@ applicable yet, write why instead of deleting the line.
 - [ ] `bakuran-gitops`: host added to `ingress-host-check`'s public list, CronJob ran clean
 - [ ] `ciceleywebsite`: menu entry PR (optional, last)
 
-## 6. M5 — WebMCP
+## 6. M5 — WebMCP (any time after §1)
 
 - [ ] `curl -sS https://tools.ciceley.cc/api/tools | jq '.tools[].name'`
 - [ ] `Cache-Control: no-store` on the manifest

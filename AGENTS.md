@@ -5,10 +5,13 @@ from `ciceleywebsite` (the Hugo blog) on purpose — see `docs/adr/0001-separate
 
 ## Start here (5 minutes, in this order)
 
-1. `docs/plan.md` — the milestone table. **Find the first milestone that is not done.** Do that.
-2. `docs/design/architecture.md` — how a tool becomes a page, an API, and a WebMCP entry.
-3. `docs/design/security.md` — the controls that are not optional.
-4. `docs/context/homelab.md` — the cluster, ArgoCD, GHCR, Cloudflare facts you will otherwise guess wrong.
+1. `spec.md` — what the system must do, as testable requirements. If code and spec disagree, one of
+   them is a bug; amend the spec in the same PR as the behaviour change.
+2. `docs/plan.md` — the milestone table. **Find the first milestone that is not done.** Do that.
+3. `docs/design/architecture.md` — how a tool becomes a page, an API, and a WebMCP entry.
+4. `docs/design/security.md` — the controls that are not optional.
+5. `docs/context/homelab.md` — the cluster, ArgoCD, GHCR, Cloudflare facts you will otherwise guess wrong.
+6. `docs/spec/hire-assistant.md` — only when the milestone is M9/M10.
 
 Do not read the whole repo before starting. M1 needs: `internal/tool/`, one tool,
 `web/templates/layout.html`, `Makefile`, `theme/`.
@@ -33,19 +36,25 @@ Do not read the whole repo before starting. M1 needs: `internal/tool/`, one tool
 7. **Do not enable egress** for a tool unless `docs/design/security.md` lists the destination and
    the NetworkPolicy is updated in the same commit, with the SSRF guard in place.
 8. **Do not create a `Namespace` object.** `apps` is owned centrally in `bakuran-gitops`.
+9. **Behaviour changes edit `spec.md` first.** Architecture or technology decisions get an ADR.
+   `docs/plan.md` carries dates and status; the spec carries no dates on purpose.
 
 ## Commands
 
 There is **no `flake.nix` yet** — writing it is the first task of M1 (packages: `go`, `sass`
-(dart-sass), `kustomize`, `kubeconform`, `jq`, `curl`, and `git` for the submodule). Until it exists,
-the commands below assume those binaries are on `PATH`.
+(dart-sass), `kustomize`, `kubeconform`, `jq`, `curl`, `git` for the submodule, and `watchexec` for
+the dev loop). Until it exists, the commands below assume those binaries are on `PATH`.
 
 ```bash
-nix develop                     # go, hugo (for CSS), kustomize, kubeconform, jq, curl
+nix develop                     # go, sass (CSS), kustomize, kubeconform, jq, curl, watchexec
 make css                        # regenerate theme/tools.css from the pinned theme + palette
-make run                        # build + serve on :8080
+make dev                        # hot reload: rebuild on .go change, templates/CSS from disk
+make list                       # list tools via /api/tools (no browser, no WebMCP)
+make call TOOL=slugify TEXT=hi  # call a tool via JSON (the no-browser fallback)
+make run                        # build + serve on :8080 (no hot reload)
 make test                       # go vet, go test -race ./..., govulncheck
-make check                      # everything CI runs on a PR
+make check                      # vet, test -race, css drift, build
+make ci                         # scripts/ci.sh — the same script the PR workflow runs
 make image                      # docker build (does not push)
 ```
 

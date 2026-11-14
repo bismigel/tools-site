@@ -8,9 +8,13 @@ build step, no front-end framework, no database.
 ```
 cmd/toolsd/main.go            flags (-addr, -base-url), registry wiring, graceful shutdown
 internal/tool/
-  tool.go                     Tool, Input, Values, Registry, Visibility
+  tool.go                     Tool, Input, Values, Registry, Visibility, Result, Table
   validate.go                 Values -> typed getters that enforce Input rules
   slugify.go                  first tool (public, pure)
+  rate_converter.go           M6: currency + period normalisation (public; embedded ECB rates)
+  meeting_planner.go          M6: multi-city overlap grid (public; embedded tzdata)
+internal/fx/
+  rates.json                  dated ECB reference rates, refreshed by CI (ADR-0009)
 internal/web/
   routes.go                   mux + middleware chain
   pages.go                    full-page handlers (index, tool page, lab page)
@@ -27,7 +31,10 @@ deploy/k8s/                   manifests ArgoCD applies
 ```
 
 Templates and static assets are `//go:embed`-ed, so the binary is self-contained and the container
-needs only the file `toolsd`.
+needs only the file `toolsd`. Two data files are embedded the same way: the dated ECB rate file
+(`internal/fx/rates.json`, refreshed by CI) and the time zone database (`import _ "time/tzdata"`).
+Neither is read from the filesystem at runtime, and neither implies network access: in v1 the
+process makes **no outbound request at all** (ADR-0009).
 
 ## One definition, six surfaces
 
@@ -55,9 +62,22 @@ type Tool struct {
 type Result struct {
     Title    string   // short heading for the output card
     Lines    []Line   // text rows, escaped by the renderer
+    Table    *Table   // optional grid: rate tables, timezone grids
     Files    []File   // optional download (name + bytes)
     JSON     any      // optional structured payload for /api and MCP
     Warnings []string
+}
+
+type Cell struct {
+    Text string
+    Tone Tone   // ToneNormal, ToneEmphasis, ToneMuted
+    Note string // optional, e.g. "+1 day"
+}
+
+type Table struct {
+    Caption string
+    Columns []string
+    Rows    [][]Cell
 }
 ```
 
@@ -107,9 +127,10 @@ ingress-nginx ─▶ :8080
 - Form: `<form hx-post="/t/{name}" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">`.
 - The handler returns **only the `#result` partial** when `HX-Request: true`, and a full page
   otherwise (deep link, no-JS, and non-JS agents all keep working).
-- Validation errors re-render the form partial with field-level messages and 422 for htmx (htmx
-  does not swap on 4xx by default — that is why the fragment is returned with 200 and a
-  `data-invalid` attribute, so the message is visible; documented in the handler).
+- Validation errors re-render the form partial with field-level messages and **`200`**, never `422`
+  (htmx does not swap 4xx bodies by default). The fragment carries `data-invalid` on the form plus a
+  visible summary, and the status code is the same for htmx and no-JS requests — one code path
+  (`spec.md` FR-2.4).
 - No `hx-on` inline JS (CSP forbids inline script; see security).
 
 ## Theme reuse
@@ -125,9 +146,10 @@ goes in `theme/site-scss/custom.scss` under a `/* tools: */` comment block, usin
 | Tool | Visibility | Needs |
 | --- | --- | --- |
 | slugify (text → url slug) | Public | nothing (M1) |
-| reading time / word count | Public | nothing |
-| post keyword search over the blog's static JSON | Public | a build-time copy of the blog's `index.json` (decide: fetch in CI, pin by sha) |
-| timezone overlap | Public | `time.LoadLocation` (tzdata embedded, `CGO_ENABLED=0`) |
+| **rate converter** (amount + period → hourly/weekly/monthly/annual, two currencies) | Public | embedded ECB rates, refreshed in CI (M6) |
+| **meeting planner** (2–6 cities, one date → overlap grid) | Public | embedded `time/tzdata` (M6) |
+| reading time / word count | Public | nothing (candidate, once M6 exists) |
+| post keyword search over the blog's static JSON | Public | a build-time copy of the blog's `index.json` (fetch in CI, pin by sha) |
 | link preview | **Gated** | outbound HTTPS + SSRF guard + egress allow |
 | Notion `Writing` DB search | **Gated** | `NOTION_API_KEY` via ExternalSecret + egress to `api.notion.com` |
 

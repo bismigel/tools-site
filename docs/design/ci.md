@@ -3,6 +3,10 @@
 Two workflows, copied in spirit from `homelab-app-template` and extended. Pinned action versions;
 Renovate keeps them fresh.
 
+**Shift left (2026-11-14):** `check.yml` runs `scripts/ci.sh`, and `make ci` runs the same script
+locally. There is one definition of "CI passes", so a green local run means a green PR apart from
+Docker (not available in every dev environment) and network-dependent steps (govulncheck).
+
 ## `check.yml` — pull requests
 
 ```yaml

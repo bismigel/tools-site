@@ -47,7 +47,17 @@ Access authenticates with a cookie, so a POST from another origin arrives authen
 - Reject with 403 and a logged `request_id`. Public POSTs need no token (no ambient credential to
   abuse) but still get the origin check.
 
-### 3. SSRF guard (only for tools that fetch, M6)
+### 3. SSRF guard (only if a tool ever fetches at runtime)
+
+**As of 2026-11-14 no tool fetches at runtime.** Exchange rates are fetched at build time
+(ADR-0009) and time zone data is embedded, so the v1 binary makes no outbound request at all and the
+NetworkPolicy keeps egress at DNS-only. The rules below apply the moment a tool needs a runtime
+fetch — and that tool is then `Gated` (`spec.md` FR-1.9).
+
+**Profile enrichment is paste-only** (ADR-0010): no fetch of a profile URL, no scraping, no headless
+browser, no stored LinkedIn session, no vendor enrichment API. A pasted URL is rejected with
+instructions. This is a security decision as much as a legal one: the rejected alternatives all
+require a credentialed robot or a third-party processor.
 
 Applies to **every** outbound request made on a user's behalf:
 
@@ -89,10 +99,10 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
   tunnel; setting HSTS in-cluster has no effect and misleads readers).
 - `style-src 'self'` means no inline `style=` attributes from templates. Keep tool styling in
   `tools.css`.
-- Google Fonts would require `style-src`/`font-src` to include `fonts.googleapis.com` /
-  `fonts.gstatic.com`. **Prefer self-hosting the two families** at M1 (a 40 kB woff2 pair) so the CSP
-  stays `'self'` and no third party sees readers' IPs. If that is deferred, add the two origins and
-  note it here.
+- Fonts are **self-hosted** (implemented 2026-11-14): Playfair Display 600 and Poppins 300/400/600,
+  latin subset, four woff2 files (~47 kB) in `web/static/fonts/`, fetched once at build time and
+  declared in `theme/site-scss/custom.scss`. No Google Fonts request at runtime, so the CSP stays
+  `font-src 'self'` and no third party sees a reader's IP.
 
 ### 6. Logging and privacy
 
@@ -101,6 +111,9 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 - **Never log tool input values or output** for gated tools; for public tools log only input sizes.
 - No query strings in access logs (they can carry user text).
 - Errors logged with `%v` on the wrapped error, never with the request body.
+- **`hire` adds one rule:** never log a prompt or a model answer — only token counts, latency and
+  outcome. Redaction is optional (client decision), so the UI warns when contact details are present;
+  the safe path is offered, not enforced, and that choice is recorded in `DESIGN.md` §5.
 
 ### 7. Rate limiting and cost
 
@@ -146,3 +159,4 @@ maintenance signal. Record it in the table below **in the same PR**.
 | `net/http` | stdlib | mux + htmx is just HTTP | chi/gin: not needed for ~10 routes |
 | htmx | 2.x (vendored) | fragment swaps without JS | writing XMLHttpRequest by hand |
 | (JWT verification) | TBD at M3b | prefer stdlib `crypto/rsa` + `encoding/json` over a library | `golang-jwt`: 1 dep, well known; decide with a note |
+| `golang.org/x/text/unicode/norm` | v0.31.0 | NFKD normalisation for `slugify`; the stdlib has no Unicode normalisation | hand-rolled diacritic table: incomplete, and the spec says NFKD |
