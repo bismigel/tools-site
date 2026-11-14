@@ -13,6 +13,9 @@ import (
 	_ "time/tzdata"
 )
 
+// nowFunc is a seam for tests; production uses the wall clock.
+var nowFunc = time.Now
+
 const (
 	maxCities  = 6
 	maxDays    = 366
@@ -73,7 +76,7 @@ func NewMeetingPlanner() Tool {
 }
 
 func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
-	now := time.Now()
+	now := nowFunc()
 
 	cities, err := citiesFromInput(in)
 	if err != nil {
@@ -125,6 +128,13 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	slots := qualifyingSlots(rows, length)
 	found := len(slots) > 0
 
+	nowLocal := now.In(anchorLoc)
+	isToday := nowLocal.Year() == date.Year() && nowLocal.YearDay() == date.YearDay()
+	nowParts := make([]string, 0, len(cities))
+	for i := range cities {
+		nowParts = append(nowParts, clockMinute(now.In(locs[i]), use12)+" "+cities[i].Name)
+	}
+
 	var warnings []string
 	for _, c := range cities {
 		if changed, detail := offsetChange(c, date, anchorLoc); changed {
@@ -148,6 +158,9 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	}
 	for h := 0; h < 24; h++ {
 		cells := []Cell{{Text: clock(h*60, use12), Tone: ToneMuted}}
+		if isToday && h == nowLocal.Hour() {
+			cells[0].Note = "now"
+		}
 		for i, t := range rows[h].local {
 			cell := Cell{Text: clockMinute(t, use12), Tone: ToneMuted}
 			if rows[h].working[i] {
@@ -163,7 +176,8 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	}
 
 	// The best slot is the title; only alternatives are listed below it.
-	lines := make([]Line, 0, maxSlots-1)
+	// "Now" first: it answers the question the grid cannot.
+	lines := []Line{{Kind: LineKeyValue, Key: "Now", Value: strings.Join(nowParts, " · ")}}
 	for i := 1; i < len(slots); i++ {
 		s := slots[i]
 		key := fmt.Sprintf("Alternative %d · %s", i, humanHours(s.hours))
@@ -203,7 +217,11 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 			"window": map[string]string{"start": fmtWindowTime(start), "end": fmtWindowTime(end)},
 			"length": length,
 			"slots":  jsonSlots,
-			"hours":  jsonHours,
+			"now": map[string]any{
+				"is_today": isToday,
+				"anchor":   fmt.Sprintf("%02d:%02d", nowLocal.Hour(), nowLocal.Minute()),
+			},
+			"hours": jsonHours,
 		},
 	}, nil
 }

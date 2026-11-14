@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bismigel/tools-site/internal/fx"
 )
@@ -224,9 +225,10 @@ func TestMeetingPlannerOverlap(t *testing.T) {
 	if got := len(res.Table.Columns); got != 3 {
 		t.Errorf("columns = %d", got)
 	}
-	// The best window *is* the title; only alternatives get a line.
-	if len(res.Lines) != 0 {
-		t.Errorf("expected no alternative lines for a single window, got %#v", res.Lines)
+	// The best window is the title; with one window there are no alternatives,
+	// but "Now" is always present.
+	if len(res.Lines) != 1 || res.Lines[0].Key != "Now" {
+		t.Errorf("lines = %#v", res.Lines)
 	}
 }
 
@@ -261,8 +263,10 @@ func TestMeetingPlannerNoOverlap(t *testing.T) {
 	if !strings.Contains(strings.Join(res.Warnings, " "), "No window of 60 minutes") {
 		t.Errorf("warnings = %v", res.Warnings)
 	}
-	if len(res.Lines) != 0 {
-		t.Errorf("expected no slot lines, got %#v", res.Lines)
+	for _, l := range res.Lines {
+		if strings.HasPrefix(l.Key, "Alternative") {
+			t.Errorf("no overlap should list no alternatives, got %#v", l)
+		}
 	}
 }
 
@@ -406,5 +410,63 @@ func TestRateConverterCompare(t *testing.T) {
 	}
 	if len(res.Lines) != 2 {
 		t.Errorf("expected one summary line per offer, got %#v", res.Lines)
+	}
+}
+
+func TestMeetingPlannerNow(t *testing.T) {
+	orig := nowFunc
+	t.Cleanup(func() { nowFunc = orig })
+	// 10:30 UTC on the chosen day: Dubai 14:30, Manila 18:30.
+	nowFunc = func() time.Time { return time.Date(2026, 11, 16, 10, 30, 0, 0, time.UTC) }
+
+	in := withDate(cities("Dubai", "Manila"), "2026-11-16")
+	res, err := planner(t, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(res.Lines) == 0 || res.Lines[0].Key != "Now" {
+		t.Fatalf("first line = %#v", res.Lines)
+	}
+	for _, want := range []string{"2:30 PM Dubai", "6:30 PM Manila"} {
+		if !strings.Contains(res.Lines[0].Value, want) {
+			t.Errorf("Now line %q missing %q", res.Lines[0].Value, want)
+		}
+	}
+
+	var marked []string
+	for _, row := range res.Table.Rows {
+		if row[0].Note == "now" {
+			marked = append(marked, row[0].Text)
+		}
+	}
+	if len(marked) != 1 || marked[0] != "2:00 PM" {
+		t.Errorf("now marker = %v, want exactly the 2 PM anchor row", marked)
+	}
+
+	data, _ := res.JSON.(map[string]any)
+	now, _ := data["now"].(map[string]any)
+	if now["is_today"] != true {
+		t.Errorf("now = %#v", now)
+	}
+}
+
+func TestMeetingPlannerNowOnAnotherDay(t *testing.T) {
+	orig := nowFunc
+	t.Cleanup(func() { nowFunc = orig })
+	nowFunc = func() time.Time { return time.Date(2026, 11, 16, 10, 30, 0, 0, time.UTC) }
+
+	in := withDate(cities("Dubai", "Manila"), "2026-11-17")
+	res, err := planner(t, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range res.Table.Rows {
+		if row[0].Note == "now" {
+			t.Fatalf("marked a row for a date that is not today: %q", row[0].Text)
+		}
+	}
+	if len(res.Lines) == 0 || res.Lines[0].Key != "Now" {
+		t.Errorf("Now line should still be shown: %#v", res.Lines)
 	}
 }

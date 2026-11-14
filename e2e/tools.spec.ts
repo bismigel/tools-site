@@ -48,6 +48,12 @@ test.describe("meeting_planner", () => {
     await expect(page.locator("#result table tbody tr")).toHaveCount(24);
   });
 
+  test("shows the current time and marks the hour", async ({ page }) => {
+    await page.goto("/t/meeting_planner?city1=Dubai&city2=Manila"); // default date = today
+    await expect(page.locator("#result")).toContainText("Now");
+    await expect(page.locator("#result .cell-note").filter({ hasText: /^now$/ })).toHaveCount(1);
+  });
+
   test("renders 12-hour labels on request", async ({ page }) => {
     await page.goto("/t/meeting_planner?city1=London&city2=New%20York&date=2026-11-16&format=12");
     await expect(page.locator("#result")).toContainText("2:00 PM–5:00 PM London");

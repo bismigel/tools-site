@@ -487,7 +487,9 @@ sentence a recruiter would say out loud.
 6. No qualifying run → say so, and name the closest hour (how many cities are inside their window).
 7. If any city has a UTC-offset transition on the date, add a warning naming the city and the change.
 
-*Output order:* verdict line → up to three slot summaries → grid (~Table~) → caveats. The anchor
+*Output order:* verdict line → a **Now** line (each city's current clock time, shown even when another
+date is selected) → up to three slot summaries → grid (~Table~) → caveats. When the selected date is
+today, the anchor hour row carries a `now` note, so the reader can locate themselves in the grid. The anchor
 column is sticky and rows highlight on hover, so a reader can track one hour across the grid. On narrow
 screens the grid scrolls inside its own card; the page never scrolls sideways.
 
