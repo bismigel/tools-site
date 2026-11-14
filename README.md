@@ -6,8 +6,9 @@ Repository: <https://github.com/bismigel/tools-site> (public) · CI image:
 A small tool host: **Go + htmx**, styled by the same Stack theme as `ciceley.cc`, with every
 tool registered with **WebMCP** so browser-capable AI agents can call it.
 
-**Status: planning complete, no code yet.** Spec is at v0.2 (`spec.md`); the readable design is
-[`DESIGN.md`](DESIGN.md). The concrete next step is [M1](docs/plan.md). A second app, the HR assistant,
+**Status: implemented and tested locally.** M1, M2, M3, M5, M6, M7 and basic M8 are on disk and
+`make ci` is green (unit + race, JS, 68 Playwright tests, kubeconform, govulncheck). Not deployed yet:
+M4 needs the cluster and the Cloudflare dashboard. See [`docs/plan.md`](docs/plan.md). A second app, the HR assistant,
 lives at `hire.ciceley.cc` (`docs/spec/hire-assistant.md`).
 
 The two tools that must exist: **currency / rate converter** and **timezone meeting planner**.

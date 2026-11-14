@@ -9,7 +9,7 @@ THEME := theme/hugo-theme-stack
 TOOL ?= slugify
 TEXT ?= Hello, World!
 
-.PHONY: all image build e2e e2e-install css css-watch run dev list call test vet fmt-check check ci css-check vuln clean
+.PHONY: all image build manifests e2e e2e-install css css-watch run dev list call test vet fmt-check check ci css-check vuln clean
 
 all: build
 
@@ -62,6 +62,9 @@ test: vet
 
 js-test:
 	node scripts/webmcp.test.mjs
+
+manifests:
+	kustomize build deploy/k8s | kubeconform -strict -ignore-missing-schemas -summary -
 
 e2e: build
 	npx playwright test

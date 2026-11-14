@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# `apps` is owned centrally in bakuran-gitops: no Namespace object here.
+namespace: apps
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - configmap.yaml
+
+# No `images:` transformer: the image tag is written by release.yml as a PR, and
+# ArgoCD applies that commit. Two owners of one line is how tags drift.

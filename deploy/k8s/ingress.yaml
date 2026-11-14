@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tools-site
+  labels:
+    app: tools-site
+  annotations:
+    # The app caps bodies at 64 KiB too; failing earlier at the edge is cheaper.
+    nginx.ingress.kubernetes.io/proxy-body-size: "64k"
+    # TLS terminates at Cloudflare; redirecting here would loop.
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  # No tls: block — the tunnel carries plain HTTP, Cloudflare serves TLS.
+  rules:
+    - host: tools.ciceley.cc
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tools-site
+                port:
+                  name: http

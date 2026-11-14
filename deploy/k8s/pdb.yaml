@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tools-site
+  labels:
+    app: tools-site
+spec:
+  # With two replicas, a node drain takes one at a time.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: tools-site

@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tools-site
+  labels:
+    app: tools-site
+spec:
+  podSelector:
+    matchLabels:
+      app: tools-site
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the ingress controller and monitoring may reach the app. Other pods in
+    # `apps` are blocked here — but note that a NetworkPolicy is namespaced, so the
+    # in-process JWT check remains the real control for the gated zone.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # DNS only. This app makes no outbound request at all (ADR-0009: FX rates are
+    # build-time data). If a fetching tool is ever added it needs its own ADR, a
+    # guarded client, and a named destination here (spec FR-1.9).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

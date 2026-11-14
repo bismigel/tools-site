@@ -486,3 +486,129 @@ func TestWebMCPBridgeIsServedAndReferenced(t *testing.T) {
 		}
 	}
 }
+
+func postRPC(t *testing.T, ts *httptest.Server, body string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/mcp", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	return res, string(out)
+}
+
+func TestMCPInitializeAndList(t *testing.T) {
+	ts := newTestServer(t)
+
+	res, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":1,"method":"initialize"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("initialize status = %d", res.StatusCode)
+	}
+	for _, want := range []string{"protocolVersion", "capabilities", "serverInfo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("initialize missing %q: %s", want, body)
+		}
+	}
+
+	res, body = postRPC(t, ts, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	if res.StatusCode != http.StatusOK || !strings.Contains(body, `"slugify"`) {
+		t.Fatalf("tools/list = %d %s", res.StatusCode, body)
+	}
+	if strings.Contains(body, "secret_tool") {
+		t.Error("gated tool advertised over MCP")
+	}
+	if !strings.Contains(body, `"inputSchema"`) {
+		t.Error("tools/list has no schemas")
+	}
+}
+
+func TestMCPCall(t *testing.T) {
+	ts := newTestServer(t)
+
+	res, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"slugify","arguments":{"text":"Hello, World!"}}}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d %s", res.StatusCode, body)
+	}
+	for _, want := range []string{`"hello-world"`, `"content"`, `"structuredContent"`, `"isError":false`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("tools/call missing %q: %s", want, body)
+		}
+	}
+
+	t.Run("bad arguments are a tool error, not a transport error", func(t *testing.T) {
+		res, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"slugify","arguments":{"text":""}}}`)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d", res.StatusCode)
+		}
+		if !strings.Contains(body, `"isError":true`) {
+			t.Errorf("body = %s", body)
+		}
+	})
+
+	t.Run("unknown tool is -32602", func(t *testing.T) {
+		_, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"nope","arguments":{}}}`)
+		if !strings.Contains(body, "-32602") {
+			t.Errorf("body = %s", body)
+		}
+	})
+
+	t.Run("gated tool is 401", func(t *testing.T) {
+		res, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"secret_tool","arguments":{}}}`)
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("status = %d", res.StatusCode)
+		}
+		if !strings.Contains(body, "-32001") {
+			t.Errorf("body = %s", body)
+		}
+	})
+
+	t.Run("unknown method is -32601", func(t *testing.T) {
+		_, body := postRPC(t, ts, `{"jsonrpc":"2.0","id":7,"method":"resources/list"}`)
+		if !strings.Contains(body, "-32601") {
+			t.Errorf("body = %s", body)
+		}
+	})
+
+	t.Run("a notification is accepted with no body", func(t *testing.T) {
+		res, body := postRPC(t, ts, `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+		if res.StatusCode != http.StatusAccepted || body != "" {
+			t.Errorf("status = %d body = %q", res.StatusCode, body)
+		}
+	})
+
+	t.Run("malformed JSON is 400", func(t *testing.T) {
+		res, _ := postRPC(t, ts, `{`)
+		if res.StatusCode != http.StatusBadRequest {
+			t.Errorf("status = %d", res.StatusCode)
+		}
+	})
+}
+
+func TestMetrics(t *testing.T) {
+	ts := newTestServer(t)
+
+	_, _ = get(t, ts, "/")
+	_, _ = postJSON(t, ts, "/api/tools/slugify", `{"text":"metrics me"}`, nil)
+
+	res, body := get(t, ts, "/metrics")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	for _, want := range []string{
+		"# TYPE tools_http_requests_total counter",
+		`tools_http_requests_total{path="/",status="200"}`,
+		"# TYPE tools_tool_runs_total counter",
+		`tools_tool_runs_total{tool="slugify",outcome="ok"}`,
+		"tools_request_duration_seconds_count",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics missing %q\n%s", want, body)
+		}
+	}
+}

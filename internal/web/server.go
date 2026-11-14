@@ -28,11 +28,12 @@ type Config struct {
 
 // Server is the whole HTTP surface.
 type Server struct {
-	cfg Config
-	log *slog.Logger
-	r   *Renderer
-	mux http.Handler
-	now func() time.Time
+	cfg     Config
+	log     *slog.Logger
+	r       *Renderer
+	mux     http.Handler
+	now     func() time.Time
+	metrics *metrics
 }
 
 // New validates the configuration and builds the mux. It fails loudly rather
@@ -56,7 +57,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 5 * time.Second
 	}
-	s := &Server{cfg: cfg, log: cfg.Log, r: NewRenderer(cfg.Templates), now: time.Now}
+	s := &Server{cfg: cfg, log: cfg.Log, r: NewRenderer(cfg.Templates), now: time.Now, metrics: newMetrics()}
 	s.mux = s.routes()
 	return s, nil
 }
@@ -79,6 +80,9 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /robots.txt", s.robots)
 	mux.HandleFunc("GET /static/css/tools.css", s.stylesheet)
 	mux.HandleFunc("GET /static/", s.static)
+	mux.HandleFunc("GET /metrics", s.metricsHandler)
+	mux.HandleFunc("POST /mcp", s.mcp)
+	mux.HandleFunc("/mcp", methodNotAllowed)
 	mux.HandleFunc("GET /dev/reload", s.devReload)
 
 	// The gated zone exists only when a verifier is configured (FR-4.3).
@@ -105,6 +109,18 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	if err := s.r.Page(w, "404.html", p); err != nil {
 		s.log.Error("render 404", "err", err)
 	}
+}
+
+// methodNotAllowed answers a known path with the wrong verb (e.g. GET /mcp).
+func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Allow", "POST")
+	http.Error(w, "Method not allowed.", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	s.metrics.write(w)
 }
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {

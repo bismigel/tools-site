@@ -93,6 +93,7 @@ func (s *Server) withLog(next http.Handler) http.Handler {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
+		s.metrics.observe(pathTemplate(r.URL.Path), sw.status, time.Since(start))
 		s.log.Info("request",
 			slog.String("request_id", reqID(r)),
 			slog.String("method", r.Method),

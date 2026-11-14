@@ -31,6 +31,9 @@ else
   echo "node not on PATH — skipping (check.yml adds setup-node at M2)"
 fi
 
+step "manifests"
+make --no-print-directory manifests
+
 step "e2e (playwright)"
 if command -v npx >/dev/null 2>&1 && [ -d node_modules ]; then
   npx playwright test

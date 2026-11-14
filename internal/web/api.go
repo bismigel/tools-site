@@ -143,10 +143,12 @@ func (s *Server) apiRunFor(v tool.Visibility) http.HandlerFunc {
 
 		res, err := t.Run(ctx, clean)
 		if err != nil {
+			s.metrics.toolRun(t.Name, "error")
 			s.log.Info("tool failed", "request_id", reqID(r), "tool", t.Name, "err", fmt.Sprint(err))
 			writeJSONError(w, r, err)
 			return
 		}
+		s.metrics.toolRun(t.Name, "ok")
 		writeJSON(w, http.StatusOK, toResultJSON(res, reqID(r)))
 	}
 }

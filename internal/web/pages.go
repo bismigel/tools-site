@@ -165,6 +165,7 @@ func (s *Server) toolRunFor(v tool.Visibility) http.HandlerFunc {
 
 		res, err := t.Run(ctx, clean)
 		if err != nil {
+			s.metrics.toolRun(t.Name, "error")
 			s.log.Info("tool failed",
 				"request_id", reqID(r), "tool", t.Name, "err", fmt.Sprint(err))
 			// HTML keeps 200 so htmx swaps the message; the JSON path keeps
@@ -174,6 +175,7 @@ func (s *Server) toolRunFor(v tool.Visibility) http.HandlerFunc {
 			s.respondForm(w, r, p)
 			return
 		}
+		s.metrics.toolRun(t.Name, "ok")
 		p.Result = viewResult(res)
 		p.Controls = Controls(t, clean, nil)
 

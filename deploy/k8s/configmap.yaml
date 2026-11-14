@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tools-site
+  labels:
+    app: tools-site
+data:
+  # Left empty on purpose. With no CF_ACCESS_AUD the gated routes are not mounted
+  # at all (spec FR-4.3), so /lab* is a 404 rather than an unauthenticated page.
+  # M3b fills these in from the Cloudflare Access application; neither is secret.
+  CF_ACCESS_TEAM_DOMAIN: ""
+  CF_ACCESS_AUD: ""
