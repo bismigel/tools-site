@@ -4,8 +4,8 @@
   <form method="{{if .Get}}get{{else}}post{{end}}" action="/{{if .CSRF}}lab{{else}}t{{end}}/{{.Tool.Name}}"
         {{if .Get}}hx-get{{else}}hx-post{{end}}="/{{if .CSRF}}lab{{else}}t{{end}}/{{.Tool.Name}}"
         {{if .Get}}hx-push-url="true"{{end}}
-        hx-target="#result" hx-swap="innerHTML show:top"
-        hx-indicator="#busy"{{if .CSRF}} hx-headers='{"X-Tools-CSRF":"{{.CSRF}}"}'{{end}}{{if .Invalid}} data-invalid="true"{{end}}>
+        hx-target="#result" hx-swap="innerHTML show:top transition:true"
+        hx-indicator="#busy" hx-disabled-elt="find button"{{if .CSRF}} hx-headers='{"X-Tools-CSRF":"{{.CSRF}}"}'{{end}}{{if .Invalid}} data-invalid="true"{{end}}>
     {{if .CSRF}}<input type="hidden" name="_csrf" value="{{.CSRF}}">{{end}}
 
     {{range .Groups}}

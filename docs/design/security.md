@@ -170,6 +170,6 @@ maintenance signal. Record it in the table below **in the same PR**.
 | --- | --- | --- | --- |
 | `html/template` | stdlib | escaping by construction | templ/jet: build step, extra API surface |
 | `net/http` | stdlib | mux + htmx is just HTTP | chi/gin: not needed for ~10 routes |
-| htmx | 2.x (vendored) | fragment swaps without JS | writing XMLHttpRequest by hand |
+| htmx | **2.0.11** (vendored, `web/static/js/` with a `VERSION` file) | fragment swaps without JS | writing XMLHttpRequest by hand |
 | (JWT verification) | TBD at M3b | prefer stdlib `crypto/rsa` + `encoding/json` over a library | `golang-jwt`: 1 dep, well known; decide with a note |
 | `golang.org/x/text/unicode/norm` | v0.31.0 | NFKD normalisation for `slugify`; the stdlib has no Unicode normalisation | hand-rolled diacritic table: incomplete, and the spec says NFKD |

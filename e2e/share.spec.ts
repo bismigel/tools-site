@@ -85,3 +85,19 @@ test.describe("form layout", () => {
     expect(box!.width).toBeGreaterThan(600);
   });
 });
+
+test.describe("htmx behaviour", () => {
+  test("the Run button cannot double-submit", async ({ page }) => {
+    await page.goto("/t/slugify");
+    await page.getByLabel("Text", { exact: true }).fill("double submit");
+
+    const posts: string[] = [];
+    page.on("request", (r) => {
+      if (r.method() === "POST" && r.url().includes("/t/slugify")) posts.push(r.url());
+    });
+
+    await page.getByRole("button", { name: "Run" }).dblclick();
+    await expect(page.locator("#result")).toContainText("double-submit");
+    expect(posts.length).toBe(1);
+  });
+});
