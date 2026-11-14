@@ -403,6 +403,9 @@ recover → request-id → access log → security headers → body limit (64 Ki
 | ~currency~      | Select | yes      | ECB-supported currency | GBP |
 | ~period~        | Select | yes      | hour, day, week, month, year | day |
 | ~target~        | Select | yes      | ECB-supported currency | GBP |
+| ~amount2~       | Number | no       | 0.01 – 10,000,000; empty means "no comparison" | — |
+| ~currency2~     | Select | no       | ECB-supported currency | GBP |
+| ~period2~       | Select | no       | hour, day, week, month, year | day |
 | ~basis~         | Select | no       | contractor = 8h × 5d × 46wk; employee = 7.5h × 5d × 47wk; custom | contractor |
 | ~hours_per_day~ | Number | no       | 1–24 | 8 |
 | ~days_per_week~ | Number | no       | 1–7 | 5 |
@@ -424,6 +427,11 @@ converted = amount × rate[target] / rate[source]   (ECB rates are units per EUR
 
 Rounding: compute at full precision, round half-up for display to 2 decimals; never round
 intermediate values.
+
+*Comparison (optional):* when ~amount2~ is set, both offers are normalised into ~target~ for every
+period and rendered as `Period | Offer A | Offer B | B vs A`, where the last column is the annual
+percentage difference. A spoken-style summary line per offer sits above the table — that is the
+sentence a recruiter would say out loud.
 
 *FX pipeline*
 
@@ -458,11 +466,14 @@ intermediate values.
 
 | Input        | Kind   | Required | Rules | Default |
 |--------------+--------+----------+-------+---------|
-| ~cities~     | Text   | yes      | 2–6, comma-separated, matched against an embedded IANA list with aliases | London |
-| ~date~       | Text   | yes      | ISO date, today ± 366 days | today |
+| ~city1~      | Text   | no       | the anchor; datalist suggestions, any IANA zone | London |
+| ~city2~      | Text   | no       | datalist suggestions, any IANA zone | New York |
+| ~city3~–~city6~ | Text | no     | optional; at most 6 cities in total | — |
+| ~date~       | Text   | no       | ISO date, today ± 366 days; blank = today | today |
 | ~work_start~ | Text   | no       | HH:MM, interpreted in *each city's* local time | 09:00 |
 | ~work_end~   | Text   | no       | HH:MM, after ~work_start~ | 17:00 |
 | ~length~     | Select | no       | 30, 45, 60 minutes | 60 |
+| ~format~     | Select | no       | ~24~ or ~12~-hour clock | 24 |
 
 *Algorithm*
 
@@ -471,13 +482,14 @@ intermediate values.
 3. For each hour 00:00–23:00 in the anchor's local day, compute the instant, then format it in every
    city's zone. A cell whose local date differs gets a ~+1~ / ~−1~ note.
 4. Mark a cell *working* when the city's own local time is within ~[work_start, work_end)~.
-5. Verdict = maximal contiguous run of hours where *all* cities are working, and the run is at least
-   ~length~. Express it in anchor time and in each city's time.
-6. No qualifying run → say so, and name the closest near-miss (fewest cities outside their window).
+5. Qualifying windows = contiguous runs where *all* cities are working and the run is at least
+   ~length~. Up to three are returned, **longest first**, each expressed in every city's time.
+6. No qualifying run → say so, and name the closest hour (how many cities are inside their window).
 7. If any city has a UTC-offset transition on the date, add a warning naming the city and the change.
 
-*Output order:* verdict line → grid (~Table~) → caveats. On narrow screens the grid scrolls inside
-its own card; the page never scrolls sideways.
+*Output order:* verdict line → up to three slot summaries → grid (~Table~) → caveats. The anchor
+column is sticky and rows highlight on hover, so a reader can track one hour across the grid. On narrow
+screens the grid scrolls inside its own card; the page never scrolls sideways.
 
 *Limits:* 2–6 cities (readability and output size), one date, no attendee availability, no calendar
 integration, no scheduling.
