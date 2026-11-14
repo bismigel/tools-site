@@ -71,6 +71,10 @@ credential/deploy key, which is a manual step.
 - Access (~Zero Trust) is applied per hostname *and can include paths*: `tools.ciceley.cc/lab*` is a
   valid Access application. That is how per-tool gating stays at two static rules
   (`docs/adr/0003-per-tool-visibility.md`).
+- **Zero Trust team domain: `bakuran.cloudflareaccess.com`.** The app **"Tools (private)"**
+  (`tools.ciceley.cc/lab`, `/api/lab`) has a single allow policy, `Owner`, listing
+  `bismigel@pm.me` and `ciceleyrubio17@gmail.com` with a 24 h session — the same shape as the other
+  self-hosted apps. Its AUD lives in `deploy/k8s/configmap.yaml`; it is not a secret.
 
 ## ingress-nginx
 

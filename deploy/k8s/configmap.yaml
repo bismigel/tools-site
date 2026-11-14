@@ -5,8 +5,12 @@ metadata:
   labels:
     app: tools-site
 data:
-  # Left empty on purpose. With no CF_ACCESS_AUD the gated routes are not mounted
-  # at all (spec FR-4.3), so /lab* is a 404 rather than an unauthenticated page.
-  # M3b fills these in from the Cloudflare Access application; neither is secret.
-  CF_ACCESS_TEAM_DOMAIN: ""
-  CF_ACCESS_AUD: ""
+  # Cloudflare Access application "Tools (private)", created 2026-11-14, covering
+  # tools.ciceley.cc/lab and tools.ciceley.cc/api/lab. Neither value is a secret:
+  # the team domain is public and the AUD is copied into every Access JWT.
+  #
+  # With CF_ACCESS_AUD empty the gated routes are not mounted at all (FR-4.3), so
+  # /lab* is a 404 rather than an unauthenticated page. Do not "temporarily" blank
+  # these in a live cluster: that removes the zone rather than opening it.
+  CF_ACCESS_TEAM_DOMAIN: "bakuran.cloudflareaccess.com"
+  CF_ACCESS_AUD: "98f3f4c4ed13095287de6cc2042ae02cf5cb8e9f2a59a54061f920c7da9c452f"
