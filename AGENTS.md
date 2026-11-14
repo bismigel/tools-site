@@ -36,6 +36,10 @@ Do not read the whole repo before starting. M1 needs: `internal/tool/`, one tool
 
 ## Commands
 
+There is **no `flake.nix` yet** — writing it is the first task of M1 (packages: `go`, `sass`
+(dart-sass), `kustomize`, `kubeconform`, `jq`, `curl`, and `git` for the submodule). Until it exists,
+the commands below assume those binaries are on `PATH`.
+
 ```bash
 nix develop                     # go, hugo (for CSS), kustomize, kubeconform, jq, curl
 make css                        # regenerate theme/tools.css from the pinned theme + palette

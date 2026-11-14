@@ -7,7 +7,7 @@ Status legend: **done** · **next** · **todo** · **blocked**
 | Milestone | Content | Done when | Status |
 | --- | --- | --- | --- |
 | **M0** | Decisions + this context pack | a fresh session can start M1 from `AGENTS.md` alone | **done** (2026-11-12) |
-| **M1** | Repo skeleton: `go.mod`, `internal/tool` registry with `Visibility`, `internal/web` router + templates, ported `layout.html`, `theme/` CSS pipeline, one public pure tool, `/healthz`, `/readyz`, `make run` | `make run` serves the themed index and the tool form on `:8080`; `make test` green | **next** |
+| **M1** | Repo skeleton: `flake.nix` (go, sass/dart-sass, kustomize, kubeconform, jq, curl), `go.mod`, `internal/tool` registry with `Visibility`, `internal/web` router + templates, ported `layout.html`, `theme/` CSS pipeline, one public pure tool, `/healthz`, `/readyz`, `make run` | `make run` serves the themed index and the tool form on `:8080`; `make test` green | **next** |
 | **M2** | `Dockerfile`, `.github/workflows/{check,release}.yml`, `make image` | PR check builds the image; a `main` push publishes `ghcr.io/ciceley/tools-site:main-…` and opens the manifest-bump PR | todo |
 | **M3** | `deploy/k8s/` (Deployment, Service, Ingress, NetworkPolicy with **egress deny**, PDB, ConfigMap, kustomization) + ArgoCD registration | pod `Ready` in `apps`; `kubectl port-forward` + `curl` returns 200; `kubeconform` clean | todo |
 | **M3b** | Cloudflare Access app on `/lab*`, `/api/lab*`; JWT verification middleware; `Visibility: Gated` zone live | anonymous `GET /lab/<tool>` is challenged by Access; a forged `Cf-Access-Authenticated-User-Email` gets 401; a valid JWT gets 200 | blocked on: CF team domain + AUD tag (+ the tool list) |
