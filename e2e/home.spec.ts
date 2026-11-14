@@ -72,3 +72,39 @@ test.describe("page furniture", () => {
     await expect(page.locator("#result")).toContainText("Fill this in");
   });
 });
+
+test.describe("dark mode", () => {
+  // WCAG relative luminance + contrast ratio, so this is a real readability check
+  // and not a colour comparison that passes by accident.
+  function luminance(rgb: string): number {
+    const [r, g, b] = (rgb.match(/\d+/g) || ["0", "0", "0"]).slice(0, 3).map(Number);
+    const chan = [r, g, b].map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * chan[0] + 0.7152 * chan[1] + 0.0722 * chan[2];
+  }
+  function contrast(a: string, b: string): number {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  for (const scheme of ["dark", "light"] as const) {
+    test(`${scheme} mode body text meets AA against the page`, async ({ browser }) => {
+      const ctx = await browser.newContext({ colorScheme: scheme });
+      const page = await ctx.newPage();
+      await page.goto("/");
+
+      const colours = await page.evaluate(() => {
+        const body = getComputedStyle(document.body);
+        const title = getComputedStyle(document.querySelector(".page-title")!);
+        return { text: body.color, bg: body.backgroundColor, title: title.color };
+      });
+
+      expect(colours.bg).not.toBe("rgba(0, 0, 0, 0)");
+      expect(contrast(colours.text, colours.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(colours.title, colours.bg)).toBeGreaterThanOrEqual(4.5);
+      await ctx.close();
+    });
+  }
+});

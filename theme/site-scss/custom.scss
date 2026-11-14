@@ -332,3 +332,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   background: var(--card-background-selected);
 }
 .result-table tr.is-now td:first-child { font-weight: 600; }
+
+/* tools: the theme paints components but never sets a base text colour on body,
+   so in dark mode every element outside a card inherited black on #241a20. */
+body {
+  color: var(--body-text-color);
+  background: var(--body-background);
+}
