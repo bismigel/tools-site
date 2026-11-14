@@ -13,6 +13,7 @@ import (
 	"time"
 
 	site "github.com/bismigel/tools-site"
+	"github.com/bismigel/tools-site/internal/fx"
 	"github.com/bismigel/tools-site/internal/tool"
 	"github.com/bismigel/tools-site/internal/web"
 )
@@ -35,11 +36,22 @@ func main() {
 		*baseURL = "http://localhost" + *addr
 	}
 
-	reg := tool.NewRegistry()
-	if err := reg.Register(tool.NewSlugify()); err != nil {
-		log.Error("invalid tool definition", "err", err)
+	rates, err := fx.Embedded()
+	if err != nil {
+		log.Error("embedded exchange rates are invalid", "err", err)
 		os.Exit(1)
 	}
+
+	reg := tool.NewRegistry()
+	register := func(t tool.Tool) {
+		if err := reg.Register(t); err != nil {
+			log.Error("invalid tool definition", "err", err)
+			os.Exit(1)
+		}
+	}
+	register(tool.NewSlugify())
+	register(tool.NewRateConverter(rates))
+	register(tool.NewMeetingPlanner())
 
 	cfg := web.Config{Registry: reg, BaseURL: *baseURL, Dev: *dev, Log: log}
 	if *dev {

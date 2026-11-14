@@ -19,6 +19,11 @@ func (t Tool) Clean(v Values) (Values, map[string]string) {
 
 	for _, in := range t.Inputs {
 		raw := strings.TrimSpace(v[in.Name])
+		// A declared default applies to missing input, not just to the rendered
+		// form: an API client sending {} must get the same behaviour as a browser.
+		if raw == "" && in.Default != "" {
+			raw = in.Default
+		}
 
 		switch in.Kind {
 		case Checkbox:
