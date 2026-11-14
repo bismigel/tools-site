@@ -19,7 +19,7 @@ dev shell and then runs one command.
 - `actions/checkout` with `submodules: recursive` (the theme is needed for the CSS drift check)
 - `actions/setup-go` with `go-version-file: go.mod` (which carries `toolchain go1.27.4`)
 - `actions/setup-node` 24 — for the WebMCP shim test
-- `npm install --global sass@1.107.1` and `go install golang.org/x/vuln/cmd/govulncheck@v1.1.4`
+- `npm install --global sass@1.107.1` and `go install golang.org/x/vuln/cmd/govulncheck@v1.9.0` (v1.1.4 panics under Go 1.27: its bundled `x/tools` is too old)
   (pinned to the same versions as `flake.nix`, so local and CI cannot drift)
 - `npm ci` + `npx playwright install --with-deps chromium` for the browser suite
 - `make ci` → `scripts/ci.sh`: CSS drift, gofmt, vet, `go test -race`, JS tests, Playwright E2E, build, govulncheck
