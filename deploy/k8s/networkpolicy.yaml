@@ -27,16 +27,9 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-  egress:
-    # DNS only. This app makes no outbound request at all (ADR-0009: FX rates are
-    # build-time data). If a fetching tool is ever added it needs its own ADR, a
-    # guarded client, and a named destination here (spec FR-1.9).
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+  # Empty egress: with Egress in policyTypes and no rules, all outbound traffic is
+  # denied. This app makes no outbound request at all — FX rates are build-time
+  # data (ADR-0009), tzdata is embedded — so it does not even need DNS, and a DNS
+  # concession would be a hole with no reader. A future fetching tool needs an ADR,
+  # a guarded client and a named destination here (spec FR-1.9).
+  egress: []

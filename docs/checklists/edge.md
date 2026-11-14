@@ -36,8 +36,9 @@ Prepared 2026-11-14, left uncommitted for review:
       `https://github.com/bismigel/tools-site`, path `deploy/k8s`, namespace `apps`)
 - [ ] `clusters/prod/projects/projects.yaml` — add the repo to `sourceRepos`; without it the sync
       fails with `InvalidSpecError: … repo is not permitted`
-- [ ] `manifests/base/monitoring/ingress-host-check.yaml` — add `tools.ciceley.cc` to the **public**
-      list, in the same PR: the Ingress this Application creates is what makes the check pass
+- [ ] **not in this PR:** the `ingress-host-check` line. It probes through ingress-nginx, and a host
+      with no serving backend answers 404 — so adding it now makes the probe red from minute one. It
+      is its own change, after the app serves (§6).
 
 Then, from a host that can reach the API server:
 
@@ -83,8 +84,13 @@ If the pre-flight fails, **stop**. Cloudflare will only add a confusing error pa
       http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/lab` → the app's own 401, not a
       redirect — proves the app enforces auth itself rather than trusting the edge
 
-## 6. Monitoring
+## 6. Monitoring — only after the app serves
 
+Do this **after** the Application is Synced/Healthy and `/healthz` answers from inside the cluster.
+Adding the host earlier means a probe against a 404 and a red alert that means nothing.
+
+- [ ] `bakuran-gitops`: add `tools.ciceley.cc` to the public list in
+      `manifests/base/monitoring/ingress-host-check.yaml` (separate PR)
 - [ ] after the next host-check run (≤5 min): no `IngressHostBroken` alert for the host
 
 ## 7. Rollback
