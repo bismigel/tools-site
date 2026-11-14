@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -169,18 +170,25 @@ func planner(t *testing.T, in Values) (Result, error) {
 	return tool.Run(context.Background(), clean)
 }
 
+// cities builds planner input from an anchor plus one or more cities.
+func cities(anchor string, rest ...string) Values {
+	v := Values{"city1": anchor}
+	for i, c := range rest {
+		v[fmt.Sprintf("city%d", i+2)] = c
+	}
+	return v
+}
+
 func TestMeetingPlannerOverlap(t *testing.T) {
-	res, err := planner(t, Values{
-		"cities": "London, New York", "date": "2026-11-16",
-		"work_start": "09:00", "work_end": "17:00", "length": "60",
-	})
+	in := cities("London", "New York")
+	in["date"] = "2026-11-16"
+	in["length"] = "60"
+
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(res.Title, "3 h overlap") {
-		t.Errorf("title = %q", res.Title)
-	}
-	for _, want := range []string{"14:00–17:00 London", "New York 09:00–12:00"} {
+	for _, want := range []string{"3 hours overlap", "14:00–17:00 London", "09:00–12:00 New York"} {
 		if !strings.Contains(res.Title, want) {
 			t.Errorf("title missing %q: %q", want, res.Title)
 		}
@@ -191,33 +199,56 @@ func TestMeetingPlannerOverlap(t *testing.T) {
 	if got := len(res.Table.Columns); got != 3 {
 		t.Errorf("columns = %d", got)
 	}
-	if res.Table.Rows[0][0].Text != "00:00" {
-		t.Errorf("first row label = %q", res.Table.Rows[0][0].Text)
+	if len(res.Lines) == 0 || !strings.Contains(res.Lines[0].Key, "Slot 1") {
+		t.Fatalf("no slot lines: %#v", res.Lines)
+	}
+	if !strings.Contains(res.Lines[0].Value, "14:00–17:00 London") {
+		t.Errorf("slot summary = %q", res.Lines[0].Value)
+	}
+}
+
+func TestMeetingPlannerTwelveHourClock(t *testing.T) {
+	in := cities("London", "New York")
+	in["date"] = "2026-11-16"
+	in["format"] = "12"
+
+	res, err := planner(t, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Title, "2:00 PM–5:00 PM London") {
+		t.Errorf("title = %q", res.Title)
+	}
+	if !strings.Contains(res.Title, "9:00 AM–12:00 PM New York") {
+		t.Errorf("title = %q", res.Title)
 	}
 }
 
 func TestMeetingPlannerNoOverlap(t *testing.T) {
-	res, err := planner(t, Values{
-		"cities": "London, Sydney", "date": "2026-11-16",
-		"work_start": "09:00", "work_end": "17:00", "length": "60",
-	})
+	in := cities("London", "Sydney")
+	in["date"] = "2026-11-16"
+
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(res.Title, "No 60-minute overlap") {
 		t.Errorf("title = %q", res.Title)
 	}
-	if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "No window of 60 minutes") {
+	if !strings.Contains(strings.Join(res.Warnings, " "), "No window of 60 minutes") {
 		t.Errorf("warnings = %v", res.Warnings)
+	}
+	if len(res.Lines) != 0 {
+		t.Errorf("expected no slot lines, got %#v", res.Lines)
 	}
 }
 
 func TestMeetingPlannerDSTWarning(t *testing.T) {
 	// US clocks go back on 2026-11-01.
-	res, err := planner(t, Values{
-		"cities": "London, New York", "date": "2026-11-01",
-		"work_start": "09:00", "work_end": "17:00", "length": "60",
-	})
+	in := cities("London", "New York")
+	in["date"] = "2026-11-01"
+
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,14 +260,10 @@ func TestMeetingPlannerDSTWarning(t *testing.T) {
 
 func TestMeetingPlannerRejectsBadInput(t *testing.T) {
 	cases := map[string]Values{
-		"one city":       {"cities": "London", "date": "2026-11-16"},
-		"seven cities":   {"cities": "London, New York, Tokyo, Sydney, Dubai, Berlin, Paris", "date": "2026-11-16"},
-		"unknown city":   {"cities": "London, Atlantis", "date": "2026-11-16"},
-		"duplicate city": {"cities": "London, london", "date": "2026-11-16"},
-		"bad date":       {"cities": "London, New York", "date": "16/11/2026"},
-		"date too far":   {"cities": "London, New York", "date": "2030-01-01"},
-		"inverted hours": {"cities": "London, New York", "date": "2026-11-16", "work_start": "17:00", "work_end": "09:00"},
-		"bad time":       {"cities": "London, New York", "date": "2026-11-16", "work_start": "9am"},
+		"unknown city":   cities("London", "Atlantis"),
+		"duplicate city": cities("London", "london"),
+		"bad date":       withDate(cities("London", "New York"), "16/11/2026"),
+		"date too far":   withDate(cities("London", "New York"), "2030-01-01"),
 	}
 	for name, in := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -245,12 +272,41 @@ func TestMeetingPlannerRejectsBadInput(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("one city reaches the run guard", func(t *testing.T) {
+		// Clean would fill city2's default, so call Run directly: the contract
+		// still refuses a single city.
+		if _, err := runMeetingPlanner(context.Background(), Values{"city1": "London"}); err == nil {
+			t.Fatal("expected an error for a single city")
+		}
+	})
+
+	t.Run("inverted working hours", func(t *testing.T) {
+		in := withDate(cities("London", "New York"), "2026-11-16")
+		in["work_start"] = "17:00"
+		in["work_end"] = "09:00"
+		if _, err := planner(t, in); err == nil {
+			t.Fatal("expected an error")
+		}
+	})
+
+	t.Run("bad time", func(t *testing.T) {
+		in := withDate(cities("London", "New York"), "2026-11-16")
+		in["work_start"] = "9am"
+		if _, err := planner(t, in); err == nil {
+			t.Fatal("expected an error")
+		}
+	})
+}
+
+func withDate(in Values, date string) Values {
+	in["date"] = date
+	return in
 }
 
 func TestMeetingPlannerAcceptsIANANames(t *testing.T) {
-	res, err := planner(t, Values{
-		"cities": "Europe/London, America/New_York", "date": "2026-11-16", "length": "60",
-	})
+	in := withDate(cities("Europe/London", "America/New_York"), "2026-11-16")
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,9 +316,8 @@ func TestMeetingPlannerAcceptsIANANames(t *testing.T) {
 }
 
 func TestMeetingPlannerDayNote(t *testing.T) {
-	res, err := planner(t, Values{
-		"cities": "London, Auckland", "date": "2026-11-16", "length": "60",
-	})
+	in := withDate(cities("London", "Auckland"), "2026-11-16")
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +335,8 @@ func TestMeetingPlannerDayNote(t *testing.T) {
 }
 
 func TestMeetingPlannerJSON(t *testing.T) {
-	res, err := planner(t, Values{"cities": "London, New York", "date": "2026-11-16", "length": "60"})
+	in := withDate(cities("London", "New York"), "2026-11-16")
+	res, err := planner(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,14 +344,41 @@ func TestMeetingPlannerJSON(t *testing.T) {
 	if !ok {
 		t.Fatal("JSON is not a map")
 	}
-	overlap, ok := data["overlap"].(map[string]any)
-	if !ok || overlap["found"] != true {
-		t.Fatalf("overlap = %#v", overlap)
+	slots, ok := data["slots"].([]map[string]any)
+	if !ok || len(slots) == 0 {
+		t.Fatalf("slots = %#v", data["slots"])
 	}
-	if overlap["start"] != "14:00" || overlap["hours"] != 3 {
-		t.Errorf("overlap = %#v", overlap)
+	if slots[0]["anchor_start"] != "14:00" || slots[0]["hours"] != 3 {
+		t.Errorf("slot = %#v", slots[0])
 	}
 	if hours, ok := data["hours"].([]map[string]any); !ok || len(hours) != 24 {
 		t.Errorf("hours = %T", data["hours"])
+	}
+}
+
+func TestRateConverterCompare(t *testing.T) {
+	tool := testRateTool(t)
+	res := runRate(t, tool, Values{
+		"amount": "550", "currency": "GBP", "period": "day", "target": "GBP",
+		"basis":   "contractor",
+		"amount2": "85", "currency2": "EUR", "period2": "hour",
+	})
+
+	if got := strings.Join(res.Table.Columns, ","); got != "Period,Offer A,Offer B,B vs A" {
+		t.Fatalf("columns = %q", got)
+	}
+	annual := res.Table.Rows[4]
+	// A: 550/day = 126,500/yr. B: 85 EUR/h = 156,400 EUR/yr = 130,686.28 GBP.
+	if annual[1].Text != "£126,500.00" {
+		t.Errorf("A annual = %q", annual[1].Text)
+	}
+	if annual[2].Text != "£130,686.28" {
+		t.Errorf("B annual = %q", annual[2].Text)
+	}
+	if annual[3].Text != "+3.3%" {
+		t.Errorf("delta = %q", annual[3].Text)
+	}
+	if len(res.Lines) != 2 {
+		t.Errorf("expected one summary line per offer, got %#v", res.Lines)
 	}
 }

@@ -84,7 +84,7 @@ test.describe("accessibility basics", () => {
     await page.goto("/t/rate_converter");
 
     for (const label of ["Amount", "Currency", "Quoted per", "Show in"]) {
-      await expect(page.getByLabel(label)).toBeVisible();
+      await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }
 
     await page.keyboard.press("Tab");

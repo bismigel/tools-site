@@ -21,22 +21,29 @@ var rateBases = map[string]rateBasis{
 	"employee":   {7.5, 5, 47, "employee · 7.5 h/day · 5 d/week · 47 wk/year (52 less 25 days leave)"},
 }
 
-// NewRateConverter builds the currency/period tool on top of the embedded rates.
-// It is public because it makes no network call at runtime (ADR-0009).
+var ratePeriods = []string{"hour", "day", "week", "month", "year"}
+
+// NewRateConverter normalises a rate to five periods, in two currencies, and can
+// compare a second offer side by side. Public: the rates are build-time data
+// (ADR-0009), so there is no runtime fetch.
 func NewRateConverter(tbl *fx.Table) Tool {
 	currencies := tbl.Supported()
 	return Tool{
 		Name:        "rate_converter",
 		Summary:     "Convert a rate between currencies and periods",
-		Description: "Normalises one quoted rate to hourly, daily, weekly, monthly and annual, in two currencies, with the annualisation assumptions shown.",
+		Description: "Normalises one quoted rate to hourly, daily, weekly, monthly and annual, in two currencies, with the annualisation assumptions shown — and compares two offers side by side.",
 		Visibility:  Public,
+		Submit:      SubmitGet,
 		Inputs: []Input{
-			{Name: "amount", Label: "Amount", Kind: Number, Required: true, Min: 0, Max: 10000000,
+			{Name: "amount", Label: "Amount", Kind: Number, Required: true, Max: 10000000,
 				Help: "The number you were quoted, e.g. 550."},
 			{Name: "currency", Label: "Currency", Kind: Select, Required: true, Options: currencies, Default: "GBP"},
-			{Name: "period", Label: "Quoted per", Kind: Select, Required: true,
-				Options: []string{"hour", "day", "week", "month", "year"}, Default: "day"},
+			{Name: "period", Label: "Quoted per", Kind: Select, Required: true, Options: ratePeriods, Default: "day"},
 			{Name: "target", Label: "Show in", Kind: Select, Required: true, Options: currencies, Default: "GBP"},
+			{Name: "amount2", Label: "Second offer (optional)", Kind: Number, Max: 10000000,
+				Help: "Fill this to compare two offers side by side."},
+			{Name: "currency2", Label: "Second offer currency", Kind: Select, Options: currencies, Default: "GBP"},
+			{Name: "period2", Label: "Second offer quoted per", Kind: Select, Options: ratePeriods, Default: "day"},
 			{Name: "basis", Label: "Working basis", Kind: Select,
 				Options: []string{"contractor", "employee", "custom"}, Default: "contractor",
 				Help: "The three numbers below are used only when this is custom."},
@@ -48,110 +55,255 @@ func NewRateConverter(tbl *fx.Table) Tool {
 	}
 }
 
+type offer struct {
+	amount    float64
+	currency  string
+	period    string
+	source    map[string]float64 // period -> amount in its own currency
+	converted map[string]float64 // period -> amount in the target currency
+}
+
+var periodLabels = map[string]string{
+	"hour": "Hourly", "day": "Daily", "week": "Weekly", "month": "Monthly", "year": "Annual",
+}
+
 func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, error) {
 	return func(_ context.Context, in Values) (Result, error) {
-		amount, err := strconv.ParseFloat(in.Get("amount"), 64)
-		if err != nil {
-			return Result{}, fmt.Errorf("%w: amount must be a number", ErrBadInput)
-		}
-		if amount < 0.01 {
-			return Result{}, fmt.Errorf("%w: amount must be greater than zero", ErrBadInput)
-		}
-		if amount > 10_000_000 {
-			return Result{}, fmt.Errorf("%w: amount is too large", ErrBadInput)
-		}
-
-		from, to, period := in.Get("currency"), in.Get("target"), in.Get("period")
-		if !tbl.Has(from) || !tbl.Has(to) {
-			return Result{}, fmt.Errorf("%w: %q is not a published currency", ErrBadInput, firstUnsupported(tbl, from, to))
-		}
-
 		basis, err := basisFor(in)
 		if err != nil {
 			return Result{}, err
 		}
 		hoursPerYear := basis.hoursPerDay * basis.daysPerWeek * basis.weeksPerYear
+		target := in.Get("target")
+		if !tbl.Has(target) {
+			return Result{}, fmt.Errorf("%w: %q is not a published currency", ErrBadInput, target)
+		}
 
-		hourly, err := toHourly(amount, period, basis, hoursPerYear)
+		a, err := buildOffer(tbl, in.Get("amount"), in.Get("currency"), in.Get("period"), target, basis, hoursPerYear)
 		if err != nil {
 			return Result{}, err
 		}
-		annual := hourly * hoursPerYear
 
-		type value struct {
-			key, label string
-			amount     float64
-		}
-		values := []value{
-			{"hourly", "Hourly", hourly},
-			{"daily", "Daily", hourly * basis.hoursPerDay},
-			{"weekly", "Weekly", hourly * basis.hoursPerDay * basis.daysPerWeek},
-			{"monthly", "Monthly", annual / 12},
-			{"annual", "Annual", annual},
-		}
-
-		rows := make([][]Cell, 0, len(values))
-		jsonValues := make(map[string]map[string]float64, len(values))
-		for _, v := range values {
-			converted, err := tbl.Convert(v.amount, from, to)
-			if err != nil {
-				return Result{}, fmt.Errorf("%w: %v", ErrBadInput, err)
-			}
-			tone := ToneNormal
-			if v.key == period {
-				tone = ToneEmphasis
-			}
-			rows = append(rows, []Cell{
-				{Text: v.label, Tone: tone},
-				{Text: money(from, v.amount), Tone: tone},
-				{Text: money(to, converted), Tone: tone},
-			})
-			jsonValues[v.key] = map[string]float64{
-				strings.ToLower(from): round2(v.amount),
-				strings.ToLower(to):   round2(converted),
-			}
-		}
-
-		rate, _ := tbl.Rate(from, to)
-		fxLine := fmt.Sprintf("FX: none (same currency) · ECB reference rate, %s · daily, not live", tbl.Date)
-		if from != to {
-			fxLine = fmt.Sprintf("FX: 1 %s = %s %s · ECB reference rate, %s · daily, not live",
-				from, group(round2(rate)), to, tbl.Date)
-		}
+		lines := []Line{{Kind: LineText, Value: summaryLine(a, target)}}
 		warnings := []string{
 			fmt.Sprintf("Assumptions: %s = %s hours/year", basis.label, groupWhole(hoursPerYear)),
-			fxLine,
+			fxLine(tbl, a.currency, target),
+		}
+
+		var table *Table
+		var data map[string]any
+		title := fmt.Sprintf("%s per %s", money(a.currency, a.amount), a.period)
+
+		if strings.TrimSpace(in.Get("amount2")) != "" {
+			b, err := buildOffer(tbl, in.Get("amount2"), in.Get("currency2"), in.Get("period2"), target, basis, hoursPerYear)
+			if err != nil {
+				return Result{}, err
+			}
+			lines = append(lines, Line{Kind: LineText, Value: summaryLine(b, target)})
+
+			table = compareTable(a, b, target)
+			title = fmt.Sprintf("%s per %s vs %s per %s",
+				money(a.currency, a.amount), a.period, money(b.currency, b.amount), b.period)
+			warnings = append(warnings, fxLine(tbl, b.currency, target))
+
+			delta := 0.0
+			if a.converted["year"] > 0 {
+				delta = (b.converted["year"] - a.converted["year"]) / a.converted["year"] * 100
+			}
+			data = map[string]any{
+				"a":     offerJSON(a),
+				"b":     offerJSON(b),
+				"delta": map[string]any{"annual_percent": round2(delta)},
+			}
+		} else {
+			table = singleTable(a, target)
+			data = map[string]any{"a": offerJSON(a)}
 		}
 
 		return Result{
-			Title: fmt.Sprintf("%s per %s", money(from, amount), period),
-			Table: &Table{
-				Caption: "Same money, five periods",
-				Columns: []string{"Period", from, to},
-				Rows:    rows,
-			},
-			Warnings: warnings,
+			Title:    title,
+			Lines:    lines,
+			Table:    table,
+			Warnings: dedupe(warnings),
 			JSON: map[string]any{
-				"from":   from,
-				"to":     to,
-				"period": period,
-				"basis":  in.Get("basis"),
-				"assumptions": map[string]float64{
-					"hours_per_day":  basis.hoursPerDay,
-					"days_per_week":  basis.daysPerWeek,
-					"weeks_per_year": basis.weeksPerYear,
-					"hours_per_year": round2(hoursPerYear),
-				},
-				"fx": map[string]any{
-					"rate":   round2(rate),
-					"date":   tbl.Date,
-					"source": tbl.Source,
-					"live":   false,
-				},
-				"values": jsonValues,
+				"target":      target,
+				"basis":       in.Get("basis"),
+				"assumptions": assumptionsJSON(basis, hoursPerYear),
+				"fx":          fxJSON(tbl, a.currency, target),
+				"offers":      data,
 			},
 		}, nil
 	}
+}
+
+func buildOffer(tbl *fx.Table, amountRaw, currency, period, target string, b rateBasis, hoursPerYear float64) (offer, error) {
+	amount, err := strconv.ParseFloat(strings.TrimSpace(amountRaw), 64)
+	if err != nil {
+		return offer{}, fmt.Errorf("%w: amount must be a number", ErrBadInput)
+	}
+	if amount < 0.01 {
+		return offer{}, fmt.Errorf("%w: amount must be greater than zero", ErrBadInput)
+	}
+	if amount > 10_000_000 {
+		return offer{}, fmt.Errorf("%w: amount is too large", ErrBadInput)
+	}
+	if !tbl.Has(currency) {
+		return offer{}, fmt.Errorf("%w: %q is not a published currency", ErrBadInput, currency)
+	}
+	if !tbl.Has(target) {
+		return offer{}, fmt.Errorf("%w: %q is not a published currency", ErrBadInput, target)
+	}
+
+	hourly, err := toHourly(amount, period, b, hoursPerYear)
+	if err != nil {
+		return offer{}, err
+	}
+	annual := hourly * hoursPerYear
+
+	o := offer{
+		amount:    amount,
+		currency:  currency,
+		period:    period,
+		source:    make(map[string]float64, 5),
+		converted: make(map[string]float64, 5),
+	}
+	values := map[string]float64{
+		"hour":  hourly,
+		"day":   hourly * b.hoursPerDay,
+		"week":  hourly * b.hoursPerDay * b.daysPerWeek,
+		"month": annual / 12,
+		"year":  annual,
+	}
+	for k, v := range values {
+		converted, err := tbl.Convert(v, currency, target)
+		if err != nil {
+			return offer{}, fmt.Errorf("%w: %v", ErrBadInput, err)
+		}
+		o.source[k] = v
+		o.converted[k] = converted
+	}
+	return o, nil
+}
+
+// summaryLine is the answer in words before the table: the number a recruiter
+// would say out loud.
+func summaryLine(o offer, target string) string {
+	annual := money(target, o.converted["year"])
+	monthly := money(target, o.converted["month"])
+	if o.currency == target {
+		return fmt.Sprintf("%s per %s = %s per year = %s per month",
+			money(o.currency, o.amount), o.period, annual, monthly)
+	}
+	return fmt.Sprintf("%s per %s = %s per year = %s per month (at today's reference rate)",
+		money(o.currency, o.amount), o.period, annual, monthly)
+}
+
+func singleTable(a offer, target string) *Table {
+	rows := make([][]Cell, 0, 5)
+	for _, p := range ratePeriods {
+		tone := ToneNormal
+		if p == a.period {
+			tone = ToneEmphasis
+		}
+		rows = append(rows, []Cell{
+			{Text: periodLabels[p], Tone: tone},
+			{Text: money(a.currency, a.source[p]), Tone: tone},
+			{Text: money(target, a.converted[p]), Tone: tone},
+		})
+	}
+	return &Table{
+		Caption: "Same money, five periods",
+		Columns: []string{"Period", a.currency, target},
+		Rows:    rows,
+	}
+}
+
+func compareTable(a, b offer, target string) *Table {
+	rows := make([][]Cell, 0, 5)
+	for _, p := range ratePeriods {
+		toneA, toneB := ToneNormal, ToneNormal
+		if p == a.period {
+			toneA = ToneEmphasis
+		}
+		if p == b.period {
+			toneB = ToneEmphasis
+		}
+		av, bv := a.converted[p], b.converted[p]
+		delta := 0.0
+		if av > 0 {
+			delta = (bv - av) / av * 100
+		}
+		toneD := ToneMuted
+		if delta > 0 {
+			toneD = ToneEmphasis
+		}
+		rows = append(rows, []Cell{
+			{Text: periodLabels[p]},
+			{Text: money(target, av), Tone: toneA},
+			{Text: money(target, bv), Tone: toneB},
+			{Text: fmt.Sprintf("%+.1f%%", delta), Tone: toneD},
+		})
+	}
+	return &Table{
+		Caption: fmt.Sprintf("Both offers in %s", target),
+		Columns: []string{"Period", "Offer A", "Offer B", "B vs A"},
+		Rows:    rows,
+	}
+}
+
+func offerJSON(o offer) map[string]any {
+	values := make(map[string]map[string]float64, 5)
+	for _, p := range ratePeriods {
+		values[p] = map[string]float64{
+			strings.ToLower(o.currency): round2(o.source[p]),
+			"target":                    round2(o.converted[p]),
+		}
+	}
+	return map[string]any{
+		"amount":   round2(o.amount),
+		"currency": o.currency,
+		"period":   o.period,
+		"values":   values,
+	}
+}
+
+func assumptionsJSON(b rateBasis, hoursPerYear float64) map[string]float64 {
+	return map[string]float64{
+		"hours_per_day":  b.hoursPerDay,
+		"days_per_week":  b.daysPerWeek,
+		"weeks_per_year": b.weeksPerYear,
+		"hours_per_year": round2(hoursPerYear),
+	}
+}
+
+func fxJSON(tbl *fx.Table, from, to string) map[string]any {
+	rate, _ := tbl.Rate(from, to)
+	return map[string]any{
+		"from": from, "to": to,
+		"rate": round2(rate), "date": tbl.Date, "source": tbl.Source, "live": false,
+	}
+}
+
+func fxLine(tbl *fx.Table, from, to string) string {
+	if from == to {
+		return fmt.Sprintf("FX: none (same currency) · ECB reference rate, %s · daily, not live", tbl.Date)
+	}
+	rate, _ := tbl.Rate(from, to)
+	return fmt.Sprintf("FX: 1 %s = %s %s · ECB reference rate, %s · daily, not live",
+		from, group(round2(rate)), to, tbl.Date)
+}
+
+func dedupe(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
 }
 
 func basisFor(in Values) (rateBasis, error) {
@@ -205,13 +357,6 @@ func toHourly(amount float64, period string, b rateBasis, hoursPerYear float64) 
 	default:
 		return 0, fmt.Errorf("%w: unknown period %q", ErrBadInput, period)
 	}
-}
-
-func firstUnsupported(tbl *fx.Table, from, to string) string {
-	if !tbl.Has(from) {
-		return from
-	}
-	return to
 }
 
 // symbols are display-only; an unknown currency falls back to its code.

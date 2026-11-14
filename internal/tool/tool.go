@@ -164,12 +164,31 @@ type Result struct {
 	Warnings []string
 }
 
+// Submit says where the input lives. Pure tools with short inputs submit with
+// GET, so the URL *is* the answer and can be bookmarked or sent to a colleague
+// (NFR-7.1). Tools with a textarea must POST: a 5,000-rune slug request does not
+// fit in a URL.
+type Submit int
+
+const (
+	SubmitPost Submit = iota // default: long text, not shareable by URL
+	SubmitGet                // short inputs, shareable, browser history works
+)
+
+func (s Submit) String() string {
+	if s == SubmitGet {
+		return "get"
+	}
+	return "post"
+}
+
 // Tool is the single definition that every surface is derived from.
 type Tool struct {
 	Name        string // ^[a-z][a-z0-9_]{0,63}$
 	Summary     string // one sentence, <=120 runes, no trailing period
 	Description string // longer prose, for the API and the page
 	Visibility  Visibility
+	Submit      Submit
 	Inputs      []Input
 	Run         func(ctx context.Context, in Values) (Result, error)
 }
@@ -228,6 +247,9 @@ func Validate(t Tool) error {
 		seen[in.Name] = true
 		if in.Label == "" {
 			return fmt.Errorf("tool %q: input %q has no label", t.Name, in.Name)
+		}
+		if t.Submit == SubmitGet && in.Kind == Textarea {
+			return fmt.Errorf("tool %q: a GET tool cannot have a textarea (%q); use SubmitPost", t.Name, in.Name)
 		}
 		if in.Kind == Select && len(in.Options) == 0 {
 			return fmt.Errorf("tool %q: select %q has no options", t.Name, in.Name)

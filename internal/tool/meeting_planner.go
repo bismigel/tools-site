@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,34 +14,59 @@ import (
 )
 
 const (
-	maxCities = 6
-	maxDays   = 366
+	maxCities  = 6
+	maxDays    = 366
+	maxSlots   = 3
+	maxSuggest = 40
 )
+
+// suggestionNames is the datalist for the city fields. Small on purpose: the
+// resolver accepts any IANA zone and ~80 aliases, this is just the fast path.
+var suggestionNames = []string{
+	"London", "New York", "San Francisco", "Los Angeles", "Chicago", "Toronto",
+	"Vancouver", "Mexico City", "São Paulo", "Buenos Aires", "Dublin", "Lisbon",
+	"Madrid", "Paris", "Berlin", "Amsterdam", "Zurich", "Stockholm", "Warsaw",
+	"Copenhagen", "Istanbul", "Dubai", "Bangalore", "Mumbai", "Singapore",
+	"Hong Kong", "Shanghai", "Tokyo", "Seoul", "Sydney", "Melbourne", "Auckland",
+}
 
 type plannerHour struct {
 	local   []time.Time
 	working []bool
 }
 
-// NewMeetingPlanner builds the WorldTimeBuddy-style overlap tool. It is public:
-// everything it needs (tzdata) is embedded, so there is no egress.
+type slot struct {
+	start, hours int
+}
+
+// NewMeetingPlanner builds the WorldTimeBuddy-style overlap tool: one row per
+// hour, one column per city, working hours shaded, best windows named.
 func NewMeetingPlanner() Tool {
+	suggestions := suggestionNames
 	return Tool{
 		Name:        "meeting_planner",
 		Summary:     "Find a meeting slot across time zones",
-		Description: "Shows a full day side by side for two to six cities and names the longest window in which everyone is inside their own working hours.",
+		Description: "Shows a full day side by side for two to six cities, shades each city's own working hours, and names up to three windows that work for everyone.",
 		Visibility:  Public,
+		Submit:      SubmitGet,
 		Inputs: []Input{
-			{Name: "cities", Label: "Cities", Kind: Text, Required: true, Min: 3, Max: 200,
-				Default: "London, New York",
-				Help:    "2–6 cities, comma separated: London, New York, Singapore, Sydney."},
-			{Name: "date", Label: "Date", Kind: Text,
-				Help: "YYYY-MM-DD. Blank means today."},
+			{Name: "city1", Label: "City 1 (anchor)", Kind: Text,
+				Default: "London", Suggestions: suggestions,
+				Help: "The rows and the working window are shown in this city's time."},
+			{Name: "city2", Label: "City 2", Kind: Text,
+				Default: "New York", Suggestions: suggestions},
+			{Name: "city3", Label: "City 3", Kind: Text, Suggestions: suggestions, Help: "Optional."},
+			{Name: "city4", Label: "City 4", Kind: Text, Suggestions: suggestions, Help: "Optional."},
+			{Name: "city5", Label: "City 5", Kind: Text, Suggestions: suggestions, Help: "Optional."},
+			{Name: "city6", Label: "City 6", Kind: Text, Suggestions: suggestions, Help: "Optional."},
+			{Name: "date", Label: "Date", Kind: Text, Help: "YYYY-MM-DD. Blank means today."},
 			{Name: "work_start", Label: "Working hours from", Kind: Text, Default: "09:00",
 				Help: "In each city's own local time."},
 			{Name: "work_end", Label: "Working hours to", Kind: Text, Default: "17:00"},
 			{Name: "length", Label: "Meeting length", Kind: Select,
 				Options: []string{"30", "45", "60"}, Default: "60", Help: "Minutes."},
+			{Name: "format", Label: "Clock", Kind: Select,
+				Options: []string{"24", "12"}, Default: "24", Help: "24-hour or 12-hour."},
 		},
 		Run: runMeetingPlanner,
 	}
@@ -49,30 +75,27 @@ func NewMeetingPlanner() Tool {
 func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	now := time.Now()
 
-	cities, err := parseCities(in.Get("cities"))
+	cities, err := citiesFromInput(in)
 	if err != nil {
 		return Result{}, err
 	}
-
 	anchorLoc, err := time.LoadLocation(cities[0].Zone)
 	if err != nil {
 		return Result{}, fmt.Errorf("%w: %s", ErrBadInput, err)
 	}
-
 	date, err := parseDate(in.Get("date"), anchorLoc, now)
 	if err != nil {
 		return Result{}, err
 	}
-
 	start, end, err := parseWindow(in.Get("work_start"), in.Get("work_end"))
 	if err != nil {
 		return Result{}, err
 	}
-
 	length, err := strconv.Atoi(in.Get("length"))
 	if err != nil || length < 15 || length > 480 {
 		return Result{}, fmt.Errorf("%w: meeting length must be 30, 45 or 60 minutes", ErrBadInput)
 	}
+	use12 := in.Get("format") == "12"
 
 	// One row per hour of the anchor's local day; each cell is that instant in
 	// the city's own zone, and "working" uses the city's own clock.
@@ -92,9 +115,8 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 		rows[h] = row
 	}
 
-	needed := (length + 59) / 60
-	bestStart, bestLen := longestOverlap(rows)
-	found := bestLen >= needed
+	slots := qualifyingSlots(rows, length)
+	found := len(slots) > 0
 
 	var warnings []string
 	for _, c := range cities {
@@ -109,24 +131,34 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	}
 
 	table := &Table{
-		Caption: fmt.Sprintf("%s in %s (anchor) · working hours %s in each city's own time",
+		Caption: fmt.Sprintf("%s · rows in %s · working hours %s in each city's own time",
 			date.Format("Mon 2 Jan 2006"), cities[0].Name, fmtWindow(start, end)),
 		Columns: append([]string{"Local"}, cityNames(cities)...),
 	}
+	best := slot{}
+	if found {
+		best = slots[0]
+	}
 	for h := 0; h < 24; h++ {
-		cells := []Cell{{Text: fmt.Sprintf("%02d:00", h), Tone: ToneMuted}}
+		cells := []Cell{{Text: clock(h*60, use12), Tone: ToneMuted}}
 		for i, t := range rows[h].local {
-			cell := Cell{Text: t.Format("15:04"), Tone: ToneMuted}
+			cell := Cell{Text: clockMinute(t, use12), Tone: ToneMuted}
 			if rows[h].working[i] {
 				cell.Tone = ToneNormal
 			}
-			if found && h >= bestStart && h < bestStart+bestLen {
+			if found && h >= best.start && h < best.start+best.hours {
 				cell.Tone = ToneEmphasis
 			}
 			cell.Note = dayNote(t, date)
 			cells = append(cells, cell)
 		}
 		table.Rows = append(table.Rows, cells)
+	}
+
+	lines := make([]Line, 0, maxSlots)
+	for i, s := range slots {
+		key := fmt.Sprintf("Slot %d · %s", i+1, humanHours(s.hours))
+		lines = append(lines, Line{Kind: LineKeyValue, Key: key, Value: slotSummary(rows, cities, s, use12, 0)})
 	}
 
 	jsonHours := make([]map[string]any, 0, 24)
@@ -141,9 +173,18 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 			"working": rows[h].working,
 		})
 	}
+	jsonSlots := make([]map[string]any, 0, len(slots))
+	for _, s := range slots {
+		jsonSlots = append(jsonSlots, map[string]any{
+			"anchor_start": fmt.Sprintf("%02d:00", s.start),
+			"hours":        s.hours,
+			"minutes":      s.hours * 60,
+		})
+	}
 
 	return Result{
-		Title:    verdict(rows, cities, bestStart, bestLen, needed, length),
+		Title:    titleFor(rows, cities, slots, length, use12),
+		Lines:    lines,
 		Table:    table,
 		Warnings: warnings,
 		JSON: map[string]any{
@@ -152,28 +193,90 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 			"cities": cityJSON(cities),
 			"window": map[string]string{"start": fmtWindowTime(start), "end": fmtWindowTime(end)},
 			"length": length,
-			"overlap": map[string]any{
-				"found":   found,
-				"start":   fmt.Sprintf("%02d:00", bestStart),
-				"hours":   bestLen,
-				"minutes": bestLen * 60,
-			},
-			"hours": jsonHours,
+			"slots":  jsonSlots,
+			"hours":  jsonHours,
 		},
 	}, nil
 }
 
-func parseCities(raw string) ([]city, error) {
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == ';' || r == '|' || r == '\n'
-	})
-	seen := make(map[string]bool, len(parts))
-	out := make([]city, 0, len(parts))
-	for _, p := range parts {
-		if strings.TrimSpace(p) == "" {
+// qualifyingSlots returns up to three non-overlapping runs that are long enough,
+// longest first. Runs are disjoint by construction.
+func qualifyingSlots(rows []plannerHour, meeting int) []slot {
+	var all []slot
+	for i := 0; i < len(rows); i++ {
+		if !allWorking(rows[i].working) {
 			continue
 		}
-		c, err := resolveCity(p)
+		j := i
+		for j < len(rows) && allWorking(rows[j].working) {
+			j++
+		}
+		if (j-i)*60 >= meeting {
+			all = append(all, slot{start: i, hours: j - i})
+		}
+		i = j
+	}
+	sort.SliceStable(all, func(a, b int) bool {
+		if all[a].hours != all[b].hours {
+			return all[a].hours > all[b].hours
+		}
+		return all[a].start < all[b].start
+	})
+	if len(all) > maxSlots {
+		all = all[:maxSlots]
+	}
+	sort.SliceStable(all, func(a, b int) bool { return all[a].start < all[b].start })
+	return all
+}
+
+func titleFor(rows []plannerHour, cities []city, slots []slot, meeting int, use12 bool) string {
+	if len(slots) == 0 {
+		bestHour, bestCount := 0, -1
+		for h := range rows {
+			count := 0
+			for _, w := range rows[h].working {
+				count += btoi(w)
+			}
+			if count > bestCount {
+				bestHour, bestCount = h, count
+			}
+		}
+		return fmt.Sprintf("No %d-minute overlap; the closest hour is %s %s (%d of %d cities in hours)",
+			meeting, clock(bestHour*60, use12), cities[0].Name, bestCount, len(cities))
+	}
+	s := slots[0]
+	head := fmt.Sprintf("%s overlap · %s–%s %s",
+		humanHours(s.hours),
+		clock(s.start*60, use12),
+		clock((s.start+s.hours)*60, use12),
+		cities[0].Name)
+	if rest := slotSummary(rows, cities, s, use12, 1); rest != "" {
+		return head + " · " + rest
+	}
+	return head
+}
+
+// slotSummary renders one slot in every city, e.g.
+// "14:00–17:00 London · 09:00–12:00 New York".
+func slotSummary(rows []plannerHour, cities []city, s slot, use12 bool, from int) string {
+	parts := make([]string, 0, len(cities))
+	for i := from; i < len(cities); i++ {
+		frm := rows[s.start].local[i]
+		to := rows[s.start+s.hours-1].local[i].Add(time.Hour)
+		parts = append(parts, fmt.Sprintf("%s–%s %s", clockMinute(frm, use12), clockMinute(to, use12), cities[i].Name))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func citiesFromInput(in Values) ([]city, error) {
+	seen := make(map[string]bool, maxCities)
+	out := make([]city, 0, maxCities)
+	for i := 1; i <= maxCities; i++ {
+		raw := strings.TrimSpace(in.Get(fmt.Sprintf("city%d", i)))
+		if raw == "" {
+			continue
+		}
+		c, err := resolveCity(raw)
 		if err != nil {
 			return nil, err
 		}
@@ -185,9 +288,6 @@ func parseCities(raw string) ([]city, error) {
 	}
 	if len(out) < 2 {
 		return nil, fmt.Errorf("%w: give at least two cities", ErrBadInput)
-	}
-	if len(out) > maxCities {
-		return nil, fmt.Errorf("%w: at most %d cities (you gave %d)", ErrBadInput, maxCities, len(out))
 	}
 	return out, nil
 }
@@ -229,26 +329,6 @@ func inWindow(t time.Time, start, end time.Duration) bool {
 	return day >= start && day < end
 }
 
-// longestOverlap returns the first longest run of hours where every city is
-// inside its own working window.
-func longestOverlap(rows []plannerHour) (int, int) {
-	bestStart, bestLen := 0, 0
-	for i := 0; i < len(rows); i++ {
-		if !allWorking(rows[i].working) {
-			continue
-		}
-		j := i
-		for j < len(rows) && allWorking(rows[j].working) {
-			j++
-		}
-		if j-i > bestLen {
-			bestStart, bestLen = i, j-i
-		}
-		i = j
-	}
-	return bestStart, bestLen
-}
-
 func allWorking(w []bool) bool {
 	for _, v := range w {
 		if !v {
@@ -256,32 +336,6 @@ func allWorking(w []bool) bool {
 		}
 	}
 	return true
-}
-
-func verdict(rows []plannerHour, cities []city, start, bestLen, needed, meeting int) string {
-	if bestLen < needed {
-		bestHour, bestCount := 0, -1
-		for h := range rows {
-			count := 0
-			for _, w := range rows[h].working {
-				count += btoi(w)
-			}
-			if count > bestCount {
-				bestHour, bestCount = h, count
-			}
-		}
-		return fmt.Sprintf("No %d-minute overlap; best hour is %02d:00 %s (%d of %d cities in hours)",
-			meeting, bestHour, cities[0].Name, bestCount, len(cities))
-	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d h overlap: %02d:00–%02d:00 %s", bestLen, start, start+bestLen, cities[0].Name)
-	for i := 1; i < len(cities); i++ {
-		from := rows[start].local[i].Format("15:04")
-		to := rows[start+bestLen-1].local[i].Add(time.Hour).Format("15:04")
-		fmt.Fprintf(&b, " · %s %s–%s", cities[i].Name, from, to)
-	}
-	return b.String()
 }
 
 func btoi(b bool) int {
@@ -345,4 +399,33 @@ func fmtWindow(start, end time.Duration) string {
 
 func fmtWindowTime(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", int(d.Hours()), int(d.Minutes())%60)
+}
+
+func humanHours(h int) string {
+	if h == 1 {
+		return "1 hour"
+	}
+	return fmt.Sprintf("%d hours", h)
+}
+
+// clock renders a minute-of-day in the chosen format.
+func clock(minutes int, use12 bool) string {
+	h, m := minutes/60, minutes%60
+	if !use12 {
+		return fmt.Sprintf("%02d:%02d", h%24, m)
+	}
+	suffix := "AM"
+	hh := h % 24
+	if hh >= 12 {
+		suffix = "PM"
+	}
+	hh %= 12
+	if hh == 0 {
+		hh = 12
+	}
+	return fmt.Sprintf("%d:%02d %s", hh, m, suffix)
+}
+
+func clockMinute(t time.Time, use12 bool) string {
+	return clock(t.Hour()*60+t.Minute(), use12)
 }

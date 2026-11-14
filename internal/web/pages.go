@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/bismigel/tools-site/internal/tool"
 )
@@ -29,6 +30,8 @@ type page struct {
 	Invalid  bool
 	FormErr  string
 	CSRF     string
+	// Get is true when the form submits with GET, so the URL holds the answer.
+	Get bool
 }
 
 type lineView struct {
@@ -110,10 +113,20 @@ func (s *Server) toolPageFor(v tool.Visibility) http.HandlerFunc {
 			s.notFound(w, r)
 			return
 		}
+
 		p := s.basePage()
 		p.Title = t.Name
 		p.Description = t.Summary
 		p.Tool = &t
+		p.Get = t.Submit == tool.SubmitGet
+
+		// A GET tool with parameters in the URL is already an answer: run it, so
+		// a shared link reproduces the result (NFR-7.1).
+		if t.Submit == tool.SubmitGet && len(r.URL.Query()) > 0 {
+			s.execute(w, r, t, valuesFromQuery(t, r.URL.Query()))
+			return
+		}
+
 		p.Controls = Controls(t, Defaults(t), nil)
 		if v == tool.Gated && s.cfg.Access != nil {
 			p.CSRF = s.cfg.Access.CSRFFor(r)
@@ -153,56 +166,59 @@ func (s *Server) toolRunFor(v tool.Visibility) http.HandlerFunc {
 			}
 		}
 
-		raw := make(tool.Values, len(t.Inputs))
-		for _, in := range t.Inputs {
-			raw[in.Name] = r.PostForm.Get(in.Name)
-		}
-		clean, errs := t.Clean(raw)
-
-		p := s.basePage()
-		p.Title = t.Name
-		p.Tool = &t
-		p.Invalid = len(errs) > 0
-		if v == tool.Gated && s.cfg.Access != nil {
-			p.CSRF = s.cfg.Access.CSRFFor(r)
-		}
-
-		if p.Invalid {
-			p.Controls = Controls(t, raw, errs)
-			s.respondForm(w, r, p)
-			return
-		}
-		p.Controls = Controls(t, clean, nil)
-
-		ctx, cancel := context.WithTimeout(r.Context(), s.cfg.Timeout)
-		defer cancel()
-
-		res, err := t.Run(ctx, clean)
-		if err != nil {
-			s.metrics.toolRun(t.Name, "error")
-			s.log.Info("tool failed",
-				"request_id", reqID(r), "tool", t.Name, "err", fmt.Sprint(err))
-			// HTML keeps 200 so htmx swaps the message; the JSON path keeps
-			// real status codes (spec FR-2.4, §4.3).
-			p.Invalid = true
-			p.FormErr = publicMessage(err)
-			s.respondForm(w, r, p)
-			return
-		}
-		s.metrics.toolRun(t.Name, "ok")
-		p.Result = viewResult(res)
-		p.Controls = Controls(t, clean, nil)
-
-		if isHTMX(r) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Header().Set("Cache-Control", "no-store")
-			if err := s.r.Partial(w, "result", p); err != nil {
-				s.log.Error("render result", "err", err)
-			}
-			return
-		}
-		s.renderPage(w, r, "tool.html", p)
+		raw := valuesFromForm(t, r)
+		s.execute(w, r, t, raw)
 	}
+}
+
+// execute is the one run path: validate, run, render. Both the GET (shareable)
+// and POST paths end here, so they cannot drift.
+func (s *Server) execute(w http.ResponseWriter, r *http.Request, t tool.Tool, raw tool.Values) {
+	clean, errs := t.Clean(raw)
+
+	p := s.basePage()
+	p.Title = t.Name
+	p.Description = t.Summary
+	p.Tool = &t
+	p.Get = t.Submit == tool.SubmitGet
+	p.Invalid = len(errs) > 0
+	if t.Visibility == tool.Gated && s.cfg.Access != nil {
+		p.CSRF = s.cfg.Access.CSRFFor(r)
+	}
+
+	if p.Invalid {
+		p.Controls = Controls(t, raw, errs)
+		s.respondForm(w, r, p)
+		return
+	}
+	p.Controls = Controls(t, clean, nil)
+
+	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.Timeout)
+	defer cancel()
+
+	res, err := t.Run(ctx, clean)
+	if err != nil {
+		s.metrics.toolRun(t.Name, "error")
+		s.log.Info("tool failed", "request_id", reqID(r), "tool", t.Name, "err", fmt.Sprint(err))
+		// HTML keeps 200 so htmx swaps the message; the JSON path keeps real
+		// status codes (FR-2.4).
+		p.Invalid = true
+		p.FormErr = publicMessage(err)
+		s.respondForm(w, r, p)
+		return
+	}
+	s.metrics.toolRun(t.Name, "ok")
+	p.Result = viewResult(res)
+
+	if isHTMX(r) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if err := s.r.Partial(w, "result", p); err != nil {
+			s.log.Error("render result", "err", err)
+		}
+		return
+	}
+	s.renderPage(w, r, "tool.html", p)
 }
 
 // respondForm re-renders the form. With htmx the target is retargeted to the
@@ -223,4 +239,22 @@ func (s *Server) respondForm(w http.ResponseWriter, r *http.Request, p page) {
 
 func isHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
+}
+
+func valuesFromForm(t tool.Tool, r *http.Request) tool.Values {
+	raw := make(tool.Values, len(t.Inputs))
+	for _, in := range t.Inputs {
+		raw[in.Name] = r.PostForm.Get(in.Name)
+	}
+	return raw
+}
+
+func valuesFromQuery(t tool.Tool, q url.Values) tool.Values {
+	raw := make(tool.Values, len(t.Inputs))
+	for _, in := range t.Inputs {
+		if v, ok := q[in.Name]; ok && len(v) > 0 {
+			raw[in.Name] = v[0]
+		}
+	}
+	return raw
 }

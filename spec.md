@@ -107,9 +107,15 @@ a design change, not a feature.
   order, which MUST be deterministic (registration order, not map iteration).
 - **FR-2.2** `GET /t/{name}` renders the tool page for a `Public` tool: summary, generated form,
   empty result region, no-JS fallback copy.
-- **FR-2.3** `POST /t/{name}` validates and runs the tool.
+- **FR-2.3** A tool runs from `POST /t/{name}`, or from `GET /t/{name}?field=…` when its `Submit` is
+  `Get`.
   - With `HX-Request: true` → `200` and **only** the result fragment (`#result` inner HTML).
   - Without it → a full page, same content, so the no-JS path works.
+  - A `GET` tool's URL **is** the answer: reloading, bookmarking or sending it reproduces the result
+    (NFR-7.1). The browser URL is updated by `hx-push-url`, and the form falls back to a normal GET
+    navigation without JavaScript.
+  - A tool with a `Textarea` must use `POST` — a 5,000-rune request does not fit in a URL. The
+    registry refuses a `Get` tool that declares a textarea, so this cannot drift.
 - **FR-2.4** Invalid input re-renders the form with field-level messages. The response is `200`
   with `data-invalid` on the form and a visible summary, **not** `422` (htmx does not swap 4xx
   bodies by default). The status-code choice MUST be identical for htmx and no-JS requests.

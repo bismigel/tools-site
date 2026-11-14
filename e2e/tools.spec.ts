@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 test.describe("rate_converter", () => {
   test("normalises £550/day to five periods and to EUR", async ({ page }) => {
     await page.goto("/t/rate_converter");
-    await page.getByLabel("Amount").fill("550");
-    await page.getByLabel("Quoted per").selectOption("day");
-    await page.getByLabel("Show in").selectOption("EUR");
+    await page.getByLabel("Amount", { exact: true }).fill("550");
+    await page.getByLabel("Quoted per", { exact: true }).selectOption("day");
+    await page.getByLabel("Show in", { exact: true }).selectOption("EUR");
     await page.getByRole("button", { name: "Run" }).click();
 
     const table = page.locator("#result table");
@@ -18,9 +18,20 @@ test.describe("rate_converter", () => {
     await expect(page.locator("#result")).toContainText("ECB reference rate");
   });
 
+  test("compares two offers side by side", async ({ page }) => {
+    await page.goto("/t/rate_converter?amount=550&currency=GBP&period=day&target=GBP&amount2=85&currency2=EUR&period2=hour");
+
+    const table = page.locator("#result table");
+    await expect(table).toContainText("Offer A");
+    await expect(table).toContainText("Offer B");
+    await expect(table).toContainText("B vs A");
+    await expect(table).toContainText("£130,686.28");
+    await expect(table).toContainText("+3.3%");
+  });
+
   test("rejects a zero amount with a field message", async ({ page }) => {
     await page.goto("/t/rate_converter");
-    await page.getByLabel("Amount").fill("0");
+    await page.getByLabel("Amount", { exact: true }).fill("0");
     await page.getByRole("button", { name: "Run" }).click();
     await expect(page.locator("#tool-form form")).toHaveAttribute("data-invalid", "true");
     await expect(page.getByText(/greater than zero/i)).toBeVisible();
@@ -29,29 +40,27 @@ test.describe("rate_converter", () => {
 
 test.describe("meeting_planner", () => {
   test("finds the London/New York overlap", async ({ page }) => {
-    await page.goto("/t/meeting_planner");
-    await page.getByLabel("Date").fill("2026-11-16");
-    await page.getByRole("button", { name: "Run" }).click();
+    await page.goto("/t/meeting_planner?city1=London&city2=New%20York&date=2026-11-16&length=60");
 
-    await expect(page.locator("#result")).toContainText("3 h overlap");
+    await expect(page.locator("#result")).toContainText("3 hours overlap");
     await expect(page.locator("#result")).toContainText("14:00–17:00 London");
-    await expect(page.locator("#result")).toContainText("New York 09:00–12:00");
+    await expect(page.locator("#result")).toContainText("09:00–12:00 New York");
     await expect(page.locator("#result table tbody tr")).toHaveCount(24);
+    await expect(page.locator("#result")).toContainText("Slot 1");
+  });
+
+  test("renders 12-hour labels on request", async ({ page }) => {
+    await page.goto("/t/meeting_planner?city1=London&city2=New%20York&date=2026-11-16&format=12");
+    await expect(page.locator("#result")).toContainText("2:00 PM–5:00 PM London");
   });
 
   test("says plainly when there is no overlap", async ({ page }) => {
-    await page.goto("/t/meeting_planner");
-    await page.getByLabel("Cities").fill("London, Sydney");
-    await page.getByLabel("Date").fill("2026-11-16");
-    await page.getByRole("button", { name: "Run" }).click();
-
+    await page.goto("/t/meeting_planner?city1=London&city2=Sydney&date=2026-11-16");
     await expect(page.locator("#result")).toContainText("No 60-minute overlap");
   });
 
   test("rejects an unknown city", async ({ page }) => {
-    await page.goto("/t/meeting_planner");
-    await page.getByLabel("Cities").fill("London, Atlantis");
-    await page.getByRole("button", { name: "Run" }).click();
+    await page.goto("/t/meeting_planner?city1=London&city2=Atlantis&date=2026-11-16");
     await expect(page.getByText(/Atlantis/)).toBeVisible();
   });
 });

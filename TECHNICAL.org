@@ -268,7 +268,8 @@ Validation runs *before* ~Run~. A ~Run~ function may assume its inputs are valid
 | Route                | Method | Auth                          | Returns              | Notes |
 |----------------------+--------+-------------------------------+----------------------+-------|
 | ~/~                  | GET    | none                          | full page            | public index |
-| ~/t/{name}~          | GET    | none                          | full page            | 404 if gated or unknown |
+| ~/t/{name}~          | GET    | none                          | full page            | 404 if gated or unknown; if the tool is `SubmitGet` and a query is present, it runs and renders the result |
+| ~/t/{name}?field=…    | GET    | none                          | full page            | the shareable form of the above (NFR-7.1) |
 | ~/t/{name}~          | POST   | origin check                  | fragment if ~HX-Request~, else full page | validate → run |
 | ~/lab~               | GET    | Access JWT                    | full page            | 404 when Access is unconfigured (FR-4.3) |
 | ~/lab/{name}~        | GET    | Access JWT                    | full page            | gated tools only |

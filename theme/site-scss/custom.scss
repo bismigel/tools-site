@@ -219,3 +219,17 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
   cursor: pointer;
 }
 .tools-card button[type="submit"]:hover { background: var(--card-background-selected); }
+
+/* tools: WorldTimeBuddy-style grid affordances */
+.result-table tbody tr:hover td { background: var(--card-background-selected); }
+.result-table th:first-child,
+.result-table td:first-child { position: sticky; left: 0; background: var(--card-background); z-index: 1; }
+.result-table tbody tr:hover td:first-child { background: var(--card-background-selected); }
+.result-table td.tone-muted { opacity: .55; }
+.result-kv { align-items: baseline; }
+.result-kv dt { min-width: 11rem; }
+
+/* tools: required marker is presentation only, so it never pollutes the
+   accessible name (Playwright and screen readers both read "Amount *" otherwise) */
+.form-row.is-required label::after { content: " *"; color: var(--accent-color); }
+.form-row input[type="checkbox"] { width: auto; }
