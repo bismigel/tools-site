@@ -54,6 +54,7 @@ make call TOOL=slugify TEXT=hi  # call a tool via JSON (the no-browser fallback)
 make run                        # build + serve on :8080 (no hot reload)
 make test                       # go vet, go test -race ./..., govulncheck
 make check                      # vet, test -race, css drift, build
+make e2e                        # Playwright: desktop + mobile, JS and no-JS
 make ci                         # scripts/ci.sh — the same script the PR workflow runs
 make image                      # docker build (does not push)
 ```

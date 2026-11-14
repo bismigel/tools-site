@@ -31,6 +31,13 @@ else
   echo "node not on PATH — skipping (check.yml adds setup-node at M2)"
 fi
 
+step "e2e (playwright)"
+if command -v npx >/dev/null 2>&1 && [ -d node_modules ]; then
+  npx playwright test
+else
+  echo "skipped: run 'make e2e-install' (CI installs node + chromium)"
+fi
+
 step "build"
 CGO_ENABLED=0 go build ./...
 

@@ -18,3 +18,7 @@ theme/.tmp/
 Thumbs.db
 *.swp
 bin/
+node_modules/
+test-results/
+playwright-report/
+blob-report/

@@ -21,7 +21,8 @@ dev shell and then runs one command.
 - `actions/setup-node` 24 — for the WebMCP shim test
 - `npm install --global sass@1.107.1` and `go install golang.org/x/vuln/cmd/govulncheck@v1.1.4`
   (pinned to the same versions as `flake.nix`, so local and CI cannot drift)
-- `make ci` → `scripts/ci.sh`: CSS drift, gofmt, vet, `go test -race`, JS tests, build, govulncheck
+- `npm ci` + `npx playwright install --with-deps chromium` for the browser suite
+- `make ci` → `scripts/ci.sh`: CSS drift, gofmt, vet, `go test -race`, JS tests, Playwright E2E, build, govulncheck
 - `make image` — proves the Dockerfile on a machine that is not the author's
 
 The `deploy/k8s` render + `kubeconform` step is added at M3, when that directory exists.
