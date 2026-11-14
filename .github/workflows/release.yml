@@ -83,10 +83,12 @@ jobs:
             echo "image line already at ${TAG}@${DIGEST}; nothing to do"
             exit 0
           }
-          branch="bump-image-${TAG}"
-          git checkout -b "$branch"
+          # One stable branch, force-pushed, so consecutive releases refresh a
+          # single open PR instead of leaving a trail of stale bump branches.
+          branch="bump-image"
+          git checkout -B "$branch"
           git commit -am "deploy: pin tools-site to ${TAG}@${DIGEST}"
-          git push origin "$branch"
+          git push --force origin "$branch"
 
           # A repo setting can forbid GITHUB_TOKEN from opening PRs. That is not a
           # release failure: the image is published and the branch is pushed, so
@@ -102,6 +104,6 @@ jobs:
 
           The digest is the pin; the tag is only a label." \
             --base main --head "$branch"; then
-            echo "::warning::could not open the PR; branch ${branch} is pushed"
+            echo "::warning::could not open/refresh the PR; ${branch} is pushed"
             echo "Open: https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
           fi

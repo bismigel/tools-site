@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} · {{end}}{{.SiteName}}</title>
   <meta name="description" content="{{.Description}}">
+  {{if .SiteURL}}<link rel="canonical" href="{{.SiteURL}}{{.Path}}">{{end}}
+  <!-- Link previews matter now that a result URL is the answer. -->
+  <meta property="og:site_name" content="{{.SiteName}}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{if .Title}}{{.Title}}{{else}}{{.SiteName}}{{end}}">
+  <meta property="og:description" content="{{.Description}}">
+  {{if .SiteURL}}<meta property="og:url" content="{{.SiteURL}}{{.Path}}">{{end}}
+  <meta name="twitter:card" content="summary">
   <link rel="icon" href="/static/img/avatar.svg" type="image/svg+xml">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <link rel="stylesheet" href="/static/css/tools.css">

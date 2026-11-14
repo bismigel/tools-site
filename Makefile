@@ -84,6 +84,9 @@ check: fmt-check test js-test css-check build
 ci:
 	@scripts/ci.sh
 
+bench:
+	$(GO) test -run '^$$' -bench . -benchmem -benchtime=200x ./...
+
 vuln:
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 

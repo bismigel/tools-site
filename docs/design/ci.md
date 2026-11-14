@@ -83,6 +83,9 @@ the compare URL instead of failing, because the image *was* published. To restor
 enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
 The fallback is deliberate: a permission the repo owner controls should not make a release look broken.
 
+One stable branch (`bump-image`, force-pushed) means consecutive releases refresh a single PR rather
+than leaving stale bump branches behind.
+
 ## Things CI deliberately does not do
 
 - **No auto-merge of the bump PR.** A human sees the image tag that reaches production.

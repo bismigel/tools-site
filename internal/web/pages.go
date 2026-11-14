@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/bismigel/tools-site/internal/tool"
 )
@@ -32,6 +33,9 @@ type page struct {
 	CSRF    string
 	// Get is true when the form submits with GET, so the URL holds the answer.
 	Get bool
+	// SiteURL + Path make a canonical link; an empty SiteURL omits it.
+	SiteURL string
+	Path    string
 }
 
 type lineView struct {
@@ -95,6 +99,7 @@ func viewResult(res tool.Result) *resultView {
 
 func (s *Server) basePage() page {
 	return page{
+		SiteURL:  strings.TrimRight(s.cfg.BaseURL, "/"),
 		SiteName: siteName,
 		SiteDesc: siteDesc,
 		Year:     s.now().Year(),
@@ -103,6 +108,7 @@ func (s *Server) basePage() page {
 }
 
 func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, name string, p page) {
+	p.Path = r.URL.Path
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := s.r.Page(w, name, p); err != nil {
