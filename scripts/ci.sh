@@ -24,6 +24,13 @@ go vet ./...
 step "test -race"
 go test -race ./...
 
+step "webmcp (js)"
+if command -v node >/dev/null 2>&1; then
+  node scripts/webmcp.test.mjs
+else
+  echo "node not on PATH — skipping (check.yml adds setup-node at M2)"
+fi
+
 step "build"
 CGO_ENABLED=0 go build ./...
 

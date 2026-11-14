@@ -467,3 +467,22 @@ func TestDevModeOnlySurface(t *testing.T) {
 		t.Error("production page references dev.js")
 	}
 }
+
+func TestWebMCPBridgeIsServedAndReferenced(t *testing.T) {
+	ts := newTestServer(t)
+
+	_, page := get(t, ts, "/")
+	if !strings.Contains(page, "/static/js/webmcp.js") {
+		t.Error("layout does not reference the WebMCP bridge")
+	}
+
+	res, js := get(t, ts, "/static/js/webmcp.js")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("bridge status = %d", res.StatusCode)
+	}
+	for _, want := range []string{"provideContext", "/api/tools/"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("bridge missing %q", want)
+		}
+	}
+}

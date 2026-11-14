@@ -7,6 +7,10 @@ Renovate keeps them fresh.
 locally. There is one definition of "CI passes", so a green local run means a green PR apart from
 Docker (not available in every dev environment) and network-dependent steps (govulncheck).
 
+One gap to close at M2: the WebMCP shim test needs Node (`nodejs` in the dev shell). Until
+`check.yml` adds `actions/setup-node`, `scripts/ci.sh` prints a skip line for that step instead of
+pretending it ran.
+
 ## `check.yml` — pull requests
 
 ```yaml

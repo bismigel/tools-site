@@ -855,7 +855,8 @@ failure is visible as an alert, not as a broken page.
 | policy | headers on every route; body limit → 413; panic → 500 + ~request_id~ |
 | a11y | labels, ~aria-describedby~, focus order, 360 px, 200 % zoom |
 | fixtures (~hire~) | 3×5 set properties on every prompt change |
-| WebMCP | the matrix in ~docs/context/webmcp.md~ (no API / API + public / API + gated) |
+| WebMCP shim | ~scripts/webmcp.test.mjs~ under Node: no API / register once / execute text / error shape / /lab prefix |
+| WebMCP in a browser | the matrix in ~docs/context/webmcp.md~ (manual; no capable browser in CI) |
 
 Definition of done for any milestone: the command in ~docs/plan.md~'s "done when" column is run and
 its output pasted into the PR body. Reading the code is not evidence.

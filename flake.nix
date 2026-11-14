@@ -22,6 +22,7 @@
             watchexec     # make dev
             govulncheck   # make ci: fail on reachable CVEs
             gcc           # go test -race needs cgo
+            nodejs        # scripts/webmcp.test.mjs
             gnumake
           ];
           env = {

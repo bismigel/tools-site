@@ -55,12 +55,15 @@ fmt-check:
 test: vet
 	$(GO) test -race ./...
 
+js-test:
+	node scripts/webmcp.test.mjs
+
 css-check:
 	@$(MAKE) --no-print-directory css
 	@out=$$(git status --porcelain -- theme/tools.css); \
 	if [ -n "$$out" ]; then echo "theme/tools.css is stale — run make css and commit it"; git diff --stat -- theme/tools.css; exit 1; fi
 
-check: fmt-check test css-check build
+check: fmt-check test js-test css-check build
 	@echo "make check: green"
 
 ci:
