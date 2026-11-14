@@ -77,6 +77,12 @@ would open another bump PR, forever. The template learned this; keep the comment
 - `workflow_dispatch` always available: a re-release by hand is a normal operation, not an
   exception.
 
+**Prerequisite found on the first real run (2026-11-14):** `GITHUB_TOKEN` could not open the bump PR —
+"GitHub Actions is not permitted to create or approve pull requests". The workflow now warns and prints
+the compare URL instead of failing, because the image *was* published. To restore full automation,
+enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
+The fallback is deliberate: a permission the repo owner controls should not make a release look broken.
+
 ## Things CI deliberately does not do
 
 - **No auto-merge of the bump PR.** A human sees the image tag that reaches production.

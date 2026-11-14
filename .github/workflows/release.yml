@@ -87,7 +87,13 @@ jobs:
           git checkout -b "$branch"
           git commit -am "deploy: pin tools-site to ${TAG}@${DIGEST}"
           git push origin "$branch"
-          gh pr create \
+
+          # A repo setting can forbid GITHUB_TOKEN from opening PRs. That is not a
+          # release failure: the image is published and the branch is pushed, so
+          # warn with the compare URL and stay green. Enabling
+          # Settings -> Actions -> General -> "Allow GitHub Actions to create and
+          # approve pull requests" restores full automation.
+          if ! gh pr create \
             --title "deploy: pin tools-site to ${TAG}" \
             --body "Automated by release.yml.
 
@@ -95,4 +101,7 @@ jobs:
           Digest: \`${DIGEST}\`
 
           The digest is the pin; the tag is only a label." \
-            --base main --head "$branch"
+            --base main --head "$branch"; then
+            echo "::warning::could not open the PR; branch ${branch} is pushed"
+            echo "Open: https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+          fi
