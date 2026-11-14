@@ -54,7 +54,7 @@ spec:
           # the first sync of this Deployment is ImagePullBackOff until the
           # image-bump PR lands. See docs/checklists/edge.md §0 before enabling
           # the Application.
-          image: ghcr.io/bismigel/tools-site:v0.1.0-main.20261114193817.b314139@sha256:b8bc3615002bf9972efc5d1bdee650aa9a2e7d064efc4051fffb2a6228d74aab
+          image: ghcr.io/bismigel/tools-site:v0.1.0-main.20261114194756.1a3f9d7@sha256:7c4e73c62d1fb872d4e300dac24fd638477697dc1dae02f23ad7c884a1b20c85
           imagePullPolicy: IfNotPresent
           args: ["-base-url=https://tools.ciceley.cc"]
           ports:
