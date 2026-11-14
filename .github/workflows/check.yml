@@ -36,6 +36,17 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      # The dev shell provides these; a runner does not. Pinned, because
+      # `make manifests` must behave the same here as on a laptop.
+      - name: install kustomize + kubeconform
+        run: |
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kustomize
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kubeconform
+          kustomize version --short
+          kubeconform -v
+
       # One definition of "CI passes": the same script a developer runs as `make ci`.
       - name: make ci
         run: make ci
