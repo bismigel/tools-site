@@ -12,7 +12,7 @@
     <fieldset class="form-group">
       {{if .Legend}}<legend>{{.Legend}}</legend>{{end}}
       {{range .Controls}}
-      <div class="form-row{{if .HasErr}} has-error{{end}}{{if .Required}} is-required{{end}}">
+      <div class="form-row{{if .HasErr}} has-error{{end}}{{if .Required}} is-required{{end}}{{if eq .Type "textarea"}} is-wide{{end}}">
         <label for="f-{{.Name}}">{{.Label}}</label>
 
         {{if eq .Type "textarea"}}

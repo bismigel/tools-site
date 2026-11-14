@@ -104,7 +104,7 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
 }
 
 /* tools: form + result primitives. Existing theme variables only — no new colours. */
-.form-row { margin-bottom: 1.25rem; }
+.form-row { margin-bottom: 0; min-width: 0; }
 .form-row label { display: block; font-weight: 600; margin-bottom: .35rem; }
 .form-row input[type="text"],
 .form-row input[type="number"],
@@ -238,14 +238,33 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
 .form-row input[type="checkbox"] { width: auto; }
 
 /* tools: sections and numeric columns */
-.form-group { border: 0; margin: 0 0 1.75rem; padding: 0; min-width: 0; }
-.form-group > legend {
-  font-weight: 600; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
-  opacity: .7; padding: 0 0 .6rem;
+.form-group {
+  border: 0; margin: 0 0 1.5rem; padding: 0; min-width: 0;
+  /* Short fields share a row; the browser picks 1-4 columns from the width,
+     so no breakpoint decides for us and there is no JavaScript involved. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem 1.25rem;
 }
-.form-group:last-of-type { margin-bottom: .5rem; }
+.form-group > legend {
+  grid-column: 1 / -1;
+  font-weight: 600; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+  opacity: .7; padding: 0;
+}
+.form-row.is-wide { grid-column: 1 / -1; }
+.form-group:last-of-type { margin-bottom: .25rem; }
+.form-row label { font-size: .95rem; }
+.form-row input[type="text"],
+.form-row input[type="number"],
+.form-row select { padding: .45rem .7rem; }
+.form-row .form-help { margin-top: .25rem; font-size: .8rem; }
+.form-row .form-error { margin-top: .25rem; font-size: .85rem; }
 .num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* tools: numeric columns must beat the theme's `td { text-align: left }` */
 .result-table td.num, .result-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .result-table--numbers th:first-child, .result-table--numbers td:first-child { width: 34%; }
+
+/* tools: money tables fill the card; grids size to their content so a shaded
+   column does not stretch into empty space */
+.result-table:not(.result-table--numbers) { width: auto; min-width: 50%; }

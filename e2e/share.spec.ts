@@ -58,3 +58,30 @@ test.describe("shareable results", () => {
     await context.close();
   });
 });
+
+test.describe("form layout", () => {
+  test("short fields share a row on wide screens and stack on narrow ones", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/t/rate_converter");
+
+    const amount = await page.getByLabel("Amount", { exact: true }).boundingBox();
+    const currency = await page.getByLabel("Currency", { exact: true }).boundingBox();
+    expect(amount && currency).toBeTruthy();
+    // Same row, different column: that is the grid doing its job.
+    expect(Math.abs(amount!.y - currency!.y)).toBeLessThan(2);
+    expect(currency!.x).toBeGreaterThan(amount!.x + 20);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const narrowAmount = await page.getByLabel("Amount", { exact: true }).boundingBox();
+    const narrowCurrency = await page.getByLabel("Currency", { exact: true }).boundingBox();
+    expect(narrowCurrency!.y).toBeGreaterThan(narrowAmount!.y + 20);
+  });
+
+  test("a textarea always takes the full row", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/t/slugify");
+    const box = await page.getByLabel("Text", { exact: true }).boundingBox();
+    expect(box!.width).toBeGreaterThan(600);
+  });
+});
