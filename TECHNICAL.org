@@ -673,8 +673,8 @@ prompts, model answers. ~hire~ additionally logs token counts and spend, not con
 ** 7.8 Secrets and supply chain
 
 - Secrets only via ExternalSecret, from **Bitwarden Secrets Manager** through
-  ~ClusterSecretStore/bitwarden~. Existing keys include ~deepseek-api-key~ (the assistant's model key,
-  verified real) and ~cloudflare-api-token~. The service token is created only if ~hire~ ever calls a
+  ~ClusterSecretStore/bitwarden~. ~hire~ authenticates to the **in-cluster Hermes gateway** with
+  ~hermes-api-key~; ~deepseek-api-key~ belongs to Hermes, not to ~hire~. The service token is created only if ~hire~ ever calls a
   gated tool. Names are the contract; values never appear in git, CI, ConfigMaps or logs.
 - ~tools-site~ needs no secret: FX rates are build-time data (ADR-0009) and the Access team
   domain/AUD are config (`deploy/k8s/configmap.yaml`).
@@ -773,7 +773,8 @@ No shell in the runtime image, therefore no ~HEALTHCHECK~; Kubernetes probes do 
 ** 9.2 NetworkPolicy
 
 ~tools-site~: ingress from ~ingress-nginx~; egress DNS only (UDP/TCP 53 to ~kube-system~).
-~hire~: the same, plus the model provider host:443 — never a bare ~to: []~.
+~hire~: the same, plus the in-cluster Hermes gateway (~duwende:8642~) — never a bare ~to: []~, and
+never internet egress: the provider call happens inside Hermes.
 Add ~monitoring~ on ~:8080~ when ~/metrics~ is exposed (M3/M8).
 
 ** 9.3 Edge, in this order

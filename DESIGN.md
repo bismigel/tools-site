@@ -223,9 +223,10 @@ intact (`spec.md` FR-1.7).
   - no invented employer, title, date or qualification;
   - "not stated" is used when the CV is silent, not replaced with a guess;
   - the vetting line never says more than the rubric supports.
-- The model is a **configuration value** (base URL, model, key), default `deepseek-chat`. Swapping it
-  is one config line and one deploy, which is the point: the provider is a commodity, the prompts and
-  the test set are the asset.
+- The model is a **configuration value** (base URL, model, key), and the base URL points at the
+  **in-cluster Hermes gateway** (`hermes.duwende.svc:8642`), authenticated with `hermes-api-key`.
+  Swapping provider is a Hermes config change, not this app's: the provider is a commodity, the
+  prompts and the test set are the asset. As a bonus, `hire` needs no internet egress.
 
 ---
 
@@ -239,7 +240,8 @@ intact (`spec.md` FR-1.7).
 - **What redaction cannot do:** it cannot reliably detect a *name*. That is stated in the UI rather
   than pretended otherwise.
 - **The residual responsibility is the owner's.** If a real candidate's CV is pasted, that is a
-  transfer of personal data to the model provider under that provider's terms. The system makes the
+  transfer of personal data to the model provider under that provider's terms — Hermes is a hop, not
+  a boundary: it forwards the text to the same provider. The system makes the
   safe path easy and visible; it does not make the decision, and it does not log the content (only
   sizes, timings and token counts).
 - **A LinkedIn profile is personal data too**, and it is only ever **pasted as text**. The system does
@@ -277,7 +279,7 @@ Two repos, one pattern (the pattern is `homelab-app-template`'s, with its two kn
 | Runtime | one Go binary, templates and assets embedded | one Go binary, templates embedded |
 | Database | none | none |
 | Secrets | none (FX data is fetched in CI) | model API key via ExternalSecret |
-| Egress | **deny** — DNS only | deny + the model provider host |
+| Egress | **deny** — DNS only | deny + `duwende:8642` (Hermes), no internet |
 | Replicas | 2, PDB `minAvailable: 1` | same |
 | Ingress | `tools.ciceley.cc` | `hire.ciceley.cc` |
 | Identity | Access on `/lab*` only | Access on the whole host |

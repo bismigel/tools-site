@@ -519,7 +519,7 @@ Copy this block into the tool's source file as a doc comment and into its PR des
 
 | # | Decision | Blocks | Recommendation |
 | --- | --- | --- | --- |
-| Q10 | Provider confirmation: I can find no "DeepSeek Flash" model — DeepSeek's API exposes `deepseek-chat` and `deepseek-reasoner`; "Flash" is a Gemini tier. Confirm the actual model or product. | M9 | Default `deepseek-chat`; base URL + model name in config so a swap is one line and one redeploy. The build must not be blocked on this: it is an env value with a default. |
+| Q10 | Provider confirmation. | M9 | **Resolved 2026-11-14: reuse the in-cluster Hermes gateway**, key `hermes-api-key`; the upstream model is Hermes's configuration. `hire` keeps a model name in config because the OpenAI API requires the field, and swaps base URL without a code change. |
 | Q14 | Blog menu link. | M4 | Optional, last, separate one-line PR in `ciceleywebsite`. |
 | Q15 | Where do non-EUR currencies the ECB does not publish (e.g. NGN, PKR) come from? | M6 | Ship the ECB set first and show an honest "not supported" for the rest; add a second source only when a real need appears, with its own ADR. |
 

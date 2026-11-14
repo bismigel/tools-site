@@ -17,8 +17,8 @@ a per-message cost, a conversation, and — via CVs — **other people's persona
 
 1. **Separate repo, separate app, `hire.ciceley.cc`.** It reuses the same deployment pattern as
    everything else in the estate: ArgoCD only, image from GHCR, tunnel in, two replicas, PDB,
-   non-root, read-only root, no service-account token, ExternalSecret for the provider key,
-   `Egress` deny-by-default with the provider host named.
+   non-root, read-only root, no service-account token, ExternalSecret for `hermes-api-key`,
+   `Egress` deny-by-default with **only the in-cluster Hermes gateway** (`duwende:8642`) allowed.
 2. **Private by default.** Cloudflare Access on the whole host, verified in-process (ADR-0003's rule
    applies unchanged). No candidate accounts, no public chat. Audience = the owner.
 3. **API-first, chat last.** Capabilities are registry tools with JSON endpoints and schemas
@@ -28,9 +28,10 @@ a per-message cost, a conversation, and — via CVs — **other people's persona
 4. **No database, no server-side history.** The thread lives in the browser and is posted per turn.
    Nothing about a candidate is retained by us. If history is ever wanted, that is a new ADR with a
    retention policy, not a feature commit.
-5. **Provider behind configuration.** OpenAI-compatible HTTP: base URL, model, key. Default
-   `deepseek-chat`, key in Bitwarden via ExternalSecret. Swapping provider is one ConfigMap line, one
-   secret, one redeploy.
+5. **Provider behind configuration, reached through Hermes.** OpenAI-compatible HTTP to the in-cluster
+   gateway (`hermes.duwende.svc:8642`), key `hermes-api-key` via ExternalSecret. Which upstream model
+   answers is Hermes's configuration, not this app's; `hire` names a model only because the API
+   requires the field. Swapping provider touches Hermes, not this repo.
 6. **Text only in v1.** No file upload, no resume parsing from PDF, no storage, no virus scanning.
    Uploading files is a different threat model and a different milestone.
 7. **Spend guard.** Per-user daily message cap plus a monthly provider budget; alert at 80 %, hard

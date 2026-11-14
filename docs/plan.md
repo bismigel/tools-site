@@ -78,9 +78,9 @@ Status legend: **done** · **next** · **todo** · **blocked**
 3. **Access service token for `hire`** — only if `hire` ever calls a **gated** tool. v0 calls public
    tools and needs none. When needed: created by a human, stored in Bitwarden, delivered by
    ExternalSecret.
-4. **Model provider name** — "DeepSeek Flash" is not a model I can find; the API exposes
-   `deepseek-chat` and `deepseek-reasoner`. Default is `deepseek-chat`; confirm at leisure, it is an
-   environment value (`spec.md` Q10).
+4. **Model provider — resolved 2026-11-14:** `hire` calls the in-cluster Hermes gateway
+   (`hermes.duwende.svc:8642`) with `hermes-api-key`; no internet egress from `hire`. The upstream
+   model is Hermes's configuration (`spec.md` Q10).
 5. **Non-ECB currencies** (NGN, PKR, …) — unsupported at first and labelled as such. A second source
    needs its own ADR (`spec.md` Q15).
 6. **Blog menu link** — `[[menu.main]]` "Tools" → `https://tools.ciceley.cc` in

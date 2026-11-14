@@ -61,12 +61,15 @@ does not find people, does not scrape LinkedIn, and does not buy data about cand
 
 ## 4a. Secrets and wiring (no values here, only names)
 
-- **Model API key: reuse the existing `deepseek-api-key`** in Bitwarden Secrets Manager (verified real,
-  not a placeholder). ESO pulls it through `ClusterSecretStore/bitwarden` with
-  `remoteRef.key: deepseek-api-key`; the target Secret is `deepseek-api-key` in `apps`. Verified
-  2026-11-14 with `bws` before writing this.
-- Sharing that key with `duwende` means rotating it affects both apps. That is the accepted cost of
-  one provider account; if isolation is wanted later, add `hire-model-api-key` and change one line.
+- **Model access goes through the in-cluster Hermes gateway**, not to a provider on the internet.
+  `hire` calls the gateway's OpenAI-compatible API on `hermes.duwende.svc:8642` and authenticates with
+  **`hermes-api-key`** (Bitwarden Secrets Manager; verified real, 64 chars, 2026-11-14). ESO pulls it
+  through `ClusterSecretStore/bitwarden`; target Secret `hermes-api-key` in `apps`.
+- **Consequence: `hire` needs no internet egress at all.** Its NetworkPolicy allows DNS and
+  `duwende:8642` only. The provider key lives in Hermes, so rotating it never touches this app, and the
+  app cannot be used to reach arbitrary hosts.
+- **The model is Hermes's business.** `deepseek-chat` today; whatever the gateway is configured for
+  tomorrow. `hire` still sends a model name from config, because the OpenAI API requires the field.
 - **Service token** (`tools-site-service-token`, fields `client_id` / `client_secret`): created in
   Cloudflare only at M9, when `hire` actually calls a gated tool. Not before — an unused credential is
   a liability, and nothing in this repo needs one today.
