@@ -49,7 +49,8 @@ test.describe("page furniture", () => {
   test("the whole card is the link, and the tool page has one h1", async ({ page }) => {
     await page.goto("/");
     await page.locator('a.tool-card[href="/t/meeting_planner"]').click();
-    await expect(page).toHaveURL(/\/t\/meeting_planner$/);
+    // The planner now fills the anchor from the browser zone, so a query is expected.
+    await expect(page).toHaveURL(/\/t\/meeting_planner(\?|$)/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Meeting planner");
   });
 

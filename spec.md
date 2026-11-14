@@ -105,6 +105,9 @@ a design change, not a feature.
   manifest or the MCP schema. It exists so an eleven-field form reads as sections, with no JavaScript.
 - **FR-1.13** `Table` MAY carry `Numeric []bool` (one per column) to right-align money and counts with
   tabular figures. It is presentation only.
+- **FR-1.14** `Tool` MAY carry `DetectTimezone` naming an input that should default to the browser's
+  IANA zone. It is progressive enhancement: the rendered default MUST work without JavaScript, and an
+  explicit value in the URL MUST win over detection.
 
 ### FR-2 — Pages (HTML surfaces)
 

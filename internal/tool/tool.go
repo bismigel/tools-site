@@ -197,8 +197,12 @@ type Tool struct {
 	Description string // longer prose, for the API and the page
 	Visibility  Visibility
 	Submit      Submit
-	Inputs      []Input
-	Run         func(ctx context.Context, in Values) (Result, error)
+	// DetectTimezone names the input that should default to the browser's IANA
+	// zone when JavaScript is available. Empty means "never". The server cannot
+	// know a visitor's zone, so this is progressive enhancement only.
+	DetectTimezone string
+	Inputs         []Input
+	Run            func(ctx context.Context, in Values) (Result, error)
 }
 
 // DisplayName is the human title shown in the UI. The identifier (Name) keeps

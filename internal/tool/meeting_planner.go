@@ -52,6 +52,8 @@ func NewMeetingPlanner() Tool {
 		Description: "Shows a full day side by side for two to six cities, shades each city's own working hours, and names up to three windows that work for everyone.",
 		Visibility:  Public,
 		Submit:      SubmitGet,
+		// City 1 is the anchor, so that is the field worth guessing.
+		DetectTimezone: "city1",
 		Inputs: []Input{
 			{Name: "city1", Group: "Cities", Label: "City 1 (anchor)", Kind: Text,
 				Default: "Dubai", Suggestions: suggestions,

@@ -475,6 +475,12 @@ sentence a recruiter would say out loud.
 | ~length~     | Select | no       | 30, 45, 60 minutes | 60 |
 | ~format~     | Select | no       | ~12~ (AM/PM) or ~24~-hour clock | 12 |
 
+*Time zone detection:* ~Tool.DetectTimezone = "city1"~ makes the anchor default to the visitor's own
+IANA zone when JavaScript is available (~web/static/js/tz.js~: ~Intl.DateTimeFormat()~ then
+~form.requestSubmit()~). The server cannot know a visitor's zone, so this is progressive enhancement:
+without JavaScript the declared default stands, and an explicit ~?city1=~ in the URL always wins so a
+shared link shows what the sender saw.
+
 *Algorithm*
 
 1. Resolve each name to an IANA zone (~time.LoadLocation~); unknown → ~bad_input~ naming the offender.

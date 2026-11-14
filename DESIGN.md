@@ -165,7 +165,9 @@ mentally adding offsets and getting the day wrong.
 
 **Rules**
 
-- The **first city is the anchor**: it defines the rows and which calendar day is shown. The working
+- The first city is the anchor: it defines the rows and which calendar day is shown. Its default is
+  the **visitor's own zone** when the browser reports one (JavaScript), and Dubai otherwise; an
+  explicit `?city1=` in a shared link always wins. The working
   window is **not** anchored: 09:00–17:00 means 9-to-5 *wherever you are*, so the verdict is the
   intersection of every city's own window, converted back to each city's local time.
 - Time zone data is **embedded in the binary** (`time/tzdata`), so the answer cannot depend on the

@@ -69,3 +69,34 @@ test.describe("meeting_planner", () => {
     await expect(page.getByText(/Atlantis/)).toBeVisible();
   });
 });
+
+test.describe("time zone detection", () => {
+  test("defaults the anchor to the visitor's zone", async ({ browser }) => {
+    const context = await browser.newContext({ timezoneId: "Europe/Lisbon" });
+    const page = await context.newPage();
+    await page.goto("/t/meeting_planner");
+
+    await expect(page.locator("#result")).toContainText("Lisbon");
+    await expect(page).toHaveURL(/city1=Europe%2FLisbon/);
+    await context.close();
+  });
+
+  test("an explicit anchor in the URL always wins", async ({ browser }) => {
+    const context = await browser.newContext({ timezoneId: "Europe/Lisbon" });
+    const page = await context.newPage();
+    await page.goto("/t/meeting_planner?city1=Dubai&city2=Manila");
+
+    await expect(page.locator("#result")).toContainText("Dubai");
+    await expect(page).not.toHaveURL(/Lisbon/);
+    await context.close();
+  });
+
+  test("without JavaScript the default anchor stands", async ({ browser }) => {
+    const context = await browser.newContext({ timezoneId: "Europe/Lisbon", javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/t/meeting_planner");
+
+    await expect(page.getByLabel("City 1 (anchor)", { exact: true })).toHaveValue("Dubai");
+    await context.close();
+  });
+});
