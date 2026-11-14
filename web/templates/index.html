@@ -1,0 +1,23 @@
+{{define "content"}}
+<section class="tools-card">
+  <h2 class="section-title">Tools</h2>
+  <p>Small things that do one job. No account, no tracking, and every page works without JavaScript.</p>
+</section>
+
+<div class="article-list">
+  {{range .Tools}}
+  <article>
+    <div class="tools-card-body">
+      <h2 class="article-title"><a href="/t/{{.Name}}">{{.Name}}</a></h2>
+      <p>{{.Summary}}</p>
+    </div>
+  </article>
+  {{else}}
+  <article><div class="tools-card-body"><p>No tools yet.</p></div></article>
+  {{end}}
+</div>
+
+<section class="tools-card">
+  <p>Machines can use the same tools: <a href="/api/tools">/api/tools</a> is the manifest.</p>
+</section>
+{{end}}
