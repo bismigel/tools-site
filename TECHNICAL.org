@@ -672,8 +672,12 @@ prompts, model answers. ~hire~ additionally logs token counts and spend, not con
 
 ** 7.8 Secrets and supply chain
 
-- Secrets only via ExternalSecret (Bitwarden): ~MODEL_API_KEY~ (hire), the service token (only if a
-  gated tool is ever called by ~hire~). Never in git, CI, ConfigMaps or logs.
+- Secrets only via ExternalSecret, from **Bitwarden Secrets Manager** through
+  ~ClusterSecretStore/bitwarden~. Existing keys include ~deepseek-api-key~ (the assistant's model key,
+  verified real) and ~cloudflare-api-token~. The service token is created only if ~hire~ ever calls a
+  gated tool. Names are the contract; values never appear in git, CI, ConfigMaps or logs.
+- ~tools-site~ needs no secret: FX rates are build-time data (ADR-0009) and the Access team
+  domain/AUD are config (`deploy/k8s/configmap.yaml`).
 - ~go.sum~ committed; ~GOFLAGS=-mod=readonly~; ~GOTOOLCHAIN=local~; ~CGO_ENABLED=0~; ~-trimpath~;
   ~-ldflags="-s -w"~.
 - Images pinned by digest; htmx vendored with a ~VERSION~ file; no CDN.

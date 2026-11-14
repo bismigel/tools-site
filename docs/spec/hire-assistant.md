@@ -59,6 +59,20 @@ does not find people, does not scrape LinkedIn, and does not buy data about cand
 - The model may not see `tools-site`'s credentials, other CVs, or the owner's email content.
 - Temperature and max tokens fixed in config, not per request, so behaviour is reproducible.
 
+## 4a. Secrets and wiring (no values here, only names)
+
+- **Model API key: reuse the existing `deepseek-api-key`** in Bitwarden Secrets Manager (verified real,
+  not a placeholder). ESO pulls it through `ClusterSecretStore/bitwarden` with
+  `remoteRef.key: deepseek-api-key`; the target Secret is `deepseek-api-key` in `apps`. Verified
+  2026-11-14 with `bws` before writing this.
+- Sharing that key with `duwende` means rotating it affects both apps. That is the accepted cost of
+  one provider account; if isolation is wanted later, add `hire-model-api-key` and change one line.
+- **Service token** (`tools-site-service-token`, fields `client_id` / `client_secret`): created in
+  Cloudflare only at M9, when `hire` actually calls a gated tool. Not before — an unused credential is
+  a liability, and nothing in this repo needs one today.
+- `tools-site` itself needs **no secret at all**: FX rates are build-time data and the Access team
+  domain/AUD are config, not secrets. That is why this repo has no ExternalSecret.
+
 ## 5. Personal data
 
 CVs contain names, contact details, employment history and sometimes health or nationality
