@@ -5,9 +5,9 @@ applicable yet, write why instead of deleting the line.
 
 ## 0. Repo
 
-- [ ] `gh repo create bismigel/tools-site --public --source . --push` (or copy `homelab-app-template`
-      and run `./scripts/init.sh tools tools.ciceley.cc 8080 apps ciceley` **in a fresh tree**, then
-      read the diff)
+- [x] **repo created: <https://github.com/bismigel/tools-site> (public)** — 2026-11-12
+- [ ] copy the parts of `homelab-app-template` this repo needs (workflows, k8s skeleton) rather than
+      running its `init.sh` after the fact: the renames below are already done by hand here
 - [ ] `git submodule add https://github.com/CaiJimmy/hugo-theme-stack theme/hugo-theme-stack`
 - [ ] `cd theme/hugo-theme-stack && git checkout v4.0.3` · `git -C ../.. commit`
 - [ ] `cp ~/projects/ciceleywebsite/assets/scss/custom.scss theme/site-scss/custom.scss`

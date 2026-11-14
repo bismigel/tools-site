@@ -1,5 +1,8 @@
 # tools-site — `tools.ciceley.cc`
 
+Repository: <https://github.com/bismigel/tools-site> (public) · CI image:
+`ghcr.io/bismigel/tools-site` · ArgoCD Application: `tools-site` in namespace `apps`.
+
 A small tool host: **Go + htmx**, styled by the same Stack theme as `ciceley.cc`, with every
 tool registered with **WebMCP** so browser-capable AI agents can call it.
 
