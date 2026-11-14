@@ -36,7 +36,10 @@ jobs:
 
       - id: tag
         name: compute tag
-        run: echo "value=main-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        run: |
+          # A version tag, not a moving one. The digest is what actually pins code;
+          # the tag is for humans reading `docker images`.
+          echo "value=v0.1.0-main.$(date -u +%Y%m%d%H%M%S).${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@v3
         with:
@@ -45,31 +48,51 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: build and push
+        id: push
         env:
           IMAGE: ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.value }}
         run: |
+          set -euo pipefail
           make image IMAGE="$IMAGE"
-          docker push "$IMAGE"
-          docker tag "$IMAGE" "ghcr.io/${{ github.repository }}:latest"
-          docker push "ghcr.io/${{ github.repository }}:latest"
+          docker push "$IMAGE" | tee /tmp/push.txt
+          DIGEST=$(grep -oE 'digest: sha256:[a-f0-9]+' /tmp/push.txt | head -1 | awk '{print $2}')
+          if [ -z "${DIGEST:-}" ]; then
+            DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE" | sed 's/.*@//')
+          fi
+          test -n "$DIGEST"
+          # Prove the registry serves that exact digest before writing it to git.
+          docker manifest inspect "ghcr.io/${{ github.repository }}@${DIGEST}" >/dev/null
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      # Until M3 there is no Deployment to bump; the image is still published.
-      - name: open image-bump PR (only once deploy/k8s exists)
+      # The digest is the pin. A tag alone can be repointed at different code, so
+      # this is the only thing that keeps deploy/k8s honest — and the only writer
+      # of that line (selfHeal reverts any human edit).
+      - name: open digest-bump PR
         if: ${{ hashFiles('deploy/k8s/deployment.yaml') != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.value }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          sed -i -E "s#image: ghcr.io/[^ ]+/tools-site:[^ ]+#image: ghcr.io/${GITHUB_REPOSITORY}:${TAG}#" \
+          sed -i -E "s#image: ghcr\.io/[^ ]+/tools-site[^ ]*#image: ghcr.io/${GITHUB_REPOSITORY}:${TAG}@${DIGEST}#" \
             deploy/k8s/deployment.yaml
+          git diff --exit-code -- deploy/k8s/deployment.yaml && {
+            echo "image line already at ${TAG}@${DIGEST}; nothing to do"
+            exit 0
+          }
           branch="bump-image-${TAG}"
           git checkout -b "$branch"
-          git commit -am "deploy: bump tools-site image to ${TAG}"
+          git commit -am "deploy: pin tools-site to ${TAG}@${DIGEST}"
           git push origin "$branch"
           gh pr create \
-            --title "deploy: bump tools-site image to ${TAG}" \
-            --body "Automated by release.yml. Image: \`ghcr.io/${GITHUB_REPOSITORY}:${TAG}\`" \
+            --title "deploy: pin tools-site to ${TAG}" \
+            --body "Automated by release.yml.
+
+          Image: \`ghcr.io/${GITHUB_REPOSITORY}:${TAG}\`
+          Digest: \`${DIGEST}\`
+
+          The digest is the pin; the tag is only a label." \
             --base main --head "$branch"

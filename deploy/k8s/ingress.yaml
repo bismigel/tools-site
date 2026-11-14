@@ -10,8 +10,10 @@ metadata:
     # TLS terminates at Cloudflare; redirecting here would loop.
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
+  # nginx is the public class; nginx-admin is for internal UIs behind Access.
   ingressClassName: nginx
-  # No tls: block — the tunnel carries plain HTTP, Cloudflare serves TLS.
+  # No spec.tls: TLS terminates at Cloudflare and the tunnel carries plain HTTP.
+  # No ingress in `apps` carries a certificate for this reason.
   rules:
     - host: tools.ciceley.cc
       http:

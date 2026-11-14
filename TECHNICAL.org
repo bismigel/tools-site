@@ -807,7 +807,11 @@ happened.
 - ~deploy/k8s/~ (kustomize), one Application per app, namespace ~apps~.
 - The repo must be in the ~prod~ AppProject's ~sourceRepos~, or the sync fails with
   ~InvalidSpecError~.
-- The image tag line in ~deployment.yaml~ is written only by ~release.yml~. Never hand-edit it.
+- The image line in ~deployment.yaml~ carries **tag + digest**
+  (~:v0.1.0-main.…@sha256:…~) and is written only by ~release.yml~: the workflow pushes, reads the
+  digest from the registry, verifies it with ~docker manifest inspect~, and opens the PR. A tag alone
+  can be repointed at different code, so the digest is the pin. Until the first release the digest is
+  all zeroes — a placeholder that cannot be pulled, by design.
 - ~syncPolicy~: automated, prune, selfHeal.
 
 ** 9.5 Rollback
@@ -851,7 +855,8 @@ The ~deploy/k8s~ render and ~kubeconform~ step is added at M3.
 - ~paths-ignore~: ~deploy/*~, ~docs/*~, ~**.md~, ~theme/tools.css~ — without this, merging the bump
   PR starts another release, which opens another bump PR, forever.
 - Tag ~main-<YYYYmmdd-HHMMSS>-<sha7>~ plus ~:latest~; push to GHCR.
-- Open a PR that updates the image line in ~deploy/k8s/deployment.yaml~ (never a direct push: GH013).
+- Open a PR that rewrites the image line to ~<tag>@sha256:<digest>~ (never a direct push: GH013).
+  The digest comes from the push output and is verified against the registry first.
 - No auto-merge; no cluster credentials in CI; ~workflow_dispatch~ always available.
 - Until M3 there is no ~deployment.yaml~: the bump step is guarded by
   ~if: hashFiles('deploy/k8s/deployment.yaml') != ''~, so the image still publishes and the bump PR

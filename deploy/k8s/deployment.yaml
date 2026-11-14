@@ -18,13 +18,23 @@ spec:
     metadata:
       labels:
         app: tools-site
+      annotations:
+        # The binary serves a hand-rolled Prometheus exposition on /metrics; the
+        # estate scrapes pods by annotation, not by ServiceMonitor.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       automountServiceAccountToken: false
+      # The app drains in-flight requests for up to 10s on SIGTERM; give it room
+      # to finish before the kubelet sends SIGKILL.
+      terminationGracePeriodSeconds: 20
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
-        fsGroup: 65532
+        # restricted: seccomp at pod level, no privilege escalation, all caps
+        # dropped at container level. No volumes at all, so no fsGroup needed.
         seccompProfile:
           type: RuntimeDefault
       topologySpreadConstraints:
@@ -36,11 +46,15 @@ spec:
               app: tools-site
       containers:
         - name: tools-site
-          # Owned by release.yml — never hand-edit this line (AGENTS.md rule 2).
-          # This tag is a placeholder until the first release. Do not register the
-          # ArgoCD Application before the bump PR lands, or the first sync is
-          # ErrImagePull: docs/checklists/edge.md §0.
-          image: ghcr.io/bismigel/tools-site:main-00000000-000000-0000000
+          # CI owns this line (AGENTS.md rule 2, spec NFR-5.5). release.yml pushes
+          # <tag> and rewrites the line as "<tag>@sha256:<digest>", because a tag
+          # alone can be repointed at different code.
+          #
+          # The digest below is a PLACEHOLDER: nothing has been published yet, so
+          # the first sync of this Deployment is ImagePullBackOff until the
+          # image-bump PR lands. See docs/checklists/edge.md §0 before enabling
+          # the Application.
+          image: ghcr.io/bismigel/tools-site:v0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
           imagePullPolicy: IfNotPresent
           args: ["-base-url=https://tools.ciceley.cc"]
           ports:
@@ -49,6 +63,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: tools-site
+          # Liveness proves the process answers and touches nothing else; readiness
+          # proves the app can actually serve (registry built, templates and CSS
+          # loaded). "/readyz is not /healthz" — docs/context/homelab.md.
           readinessProbe:
             httpGet:
               path: /readyz
@@ -65,22 +82,22 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
+          # Proportionate to a Go binary that renders templates and does no network
+          # I/O: 32Mi request covers steady state (measured binary ~14 MiB, heap a
+          # few MiB); 96Mi limit is the spec's NFR-1.6 ceiling, and 500m CPU matches
+          # the estate's other app so a burst (template render, 24-row grid) is not
+          # throttled by an arbitrarily low limit.
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 96Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          resources:
-            requests:
-              cpu: 25m
-              memory: 32Mi
-            limits:
-              cpu: 200m
-              memory: 96Mi
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: tmp
-          emptyDir:
-            sizeLimit: 16Mi
+      # No volumes: the binary embeds templates, static assets, the FX data and
+      # tzdata, and writes nothing. Nothing here is worth an emptyDir, let alone a PVC.

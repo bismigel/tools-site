@@ -15,19 +15,18 @@ that is `ErrImagePull`, which reads like an ingress problem and wastes an aftern
 - [ ] set the **GHCR package visibility to public** (packages created by Actions default to private;
       public means the cluster needs no `ghcr-secret`)
 - [ ] merge the image-bump PR
-- [ ] prove the cluster can actually pull it before handing ArgoCD the Application:
+- [ ] prove the cluster can pull **the exact digest** before handing ArgoCD the Application:
 
 ```bash
-tag=$(grep -m1 '^\s*image:' deploy/k8s/deployment.yaml | sed 's/.*://')
-docker manifest inspect "ghcr.io/bismigel/tools-site:${tag}" >/dev/null \
-  && echo "pullable: ${tag}" \
-  || echo "NOT pullable (missing tag, or package still private): ${tag}"
+ref=$(grep -m1 '^\s*image:' deploy/k8s/deployment.yaml | awk '{print $2}')
+docker manifest inspect "$ref" >/dev/null \
+  && echo "pullable: $ref" \
+  || echo "NOT pullable (missing digest, or package still private): $ref"
 ```
 
-Non-zero means one of **two** things — the tag does not exist, *or* the package is private — and both
-make the pod `ErrImagePull`. Treat either as "go back a step". Verified on 2026-11-14: the placeholder
-tag `main-00000000-000000-0000000` fails with `403 Forbidden`, which is the correct answer for an
-image nobody has published yet.
+Non-zero means one of **two** things — that digest does not exist, *or* the package is private — and
+both make the pod `ErrImagePull`. Treat either as "go back a step". The committed digest is all
+zeroes until the first release writes a real one, and that placeholder fails this check on purpose.
 
 ## 1. ArgoCD registration — `bakuran-gitops`, one PR
 
