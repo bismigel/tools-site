@@ -16,6 +16,10 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
+  # Needed to kick check.yml on the bump branch: a push made with GITHUB_TOKEN
+  # does not trigger other workflows (GitHub suppresses it to prevent recursion),
+  # so without this the digest PR arrives with no checks at all.
+  actions: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -95,6 +99,10 @@ jobs:
           # warn with the compare URL and stay green. Enabling
           # Settings -> Actions -> General -> "Allow GitHub Actions to create and
           # approve pull requests" restores full automation.
+          # The branch's check has to be started explicitly for the reason above.
+          gh workflow run check.yml --ref "$branch" \
+            || echo "::warning::could not start check.yml on ${branch}"
+
           if ! gh pr create \
             --title "deploy: pin tools-site to ${TAG}" \
             --body "Automated by release.yml.
