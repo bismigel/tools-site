@@ -24,9 +24,8 @@ test.describe("rate_converter", () => {
     const table = page.locator("#result table");
     await expect(table).toContainText("Offer A");
     await expect(table).toContainText("Offer B");
-    await expect(table).toContainText("B vs A");
     await expect(table).toContainText("£130,686.28");
-    await expect(table).toContainText("+3.3%");
+    await expect(page.locator("#result")).toContainText("3.3% higher per year");
   });
 
   test("rejects a zero amount with a field message", async ({ page }) => {

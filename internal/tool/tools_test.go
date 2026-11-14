@@ -199,11 +199,9 @@ func TestMeetingPlannerOverlap(t *testing.T) {
 	if got := len(res.Table.Columns); got != 3 {
 		t.Errorf("columns = %d", got)
 	}
-	if len(res.Lines) == 0 || !strings.Contains(res.Lines[0].Key, "Slot 1") {
-		t.Fatalf("no slot lines: %#v", res.Lines)
-	}
-	if !strings.Contains(res.Lines[0].Value, "14:00–17:00 London") {
-		t.Errorf("slot summary = %q", res.Lines[0].Value)
+	// The best window *is* the title; only alternatives get a line.
+	if len(res.Lines) != 0 {
+		t.Errorf("expected no alternative lines for a single window, got %#v", res.Lines)
 	}
 }
 
@@ -364,8 +362,11 @@ func TestRateConverterCompare(t *testing.T) {
 		"amount2": "85", "currency2": "EUR", "period2": "hour",
 	})
 
-	if got := strings.Join(res.Table.Columns, ","); got != "Period,Offer A,Offer B,B vs A" {
+	if got := strings.Join(res.Table.Columns, ","); got != "Period,Offer A,Offer B" {
 		t.Fatalf("columns = %q", got)
+	}
+	if !strings.Contains(res.Title, "B is 3.3% higher per year") {
+		t.Errorf("title = %q", res.Title)
 	}
 	annual := res.Table.Rows[4]
 	// A: 550/day = 126,500/yr. B: 85 EUR/h = 156,400 EUR/yr = 130,686.28 GBP.
@@ -375,8 +376,8 @@ func TestRateConverterCompare(t *testing.T) {
 	if annual[2].Text != "£130,686.28" {
 		t.Errorf("B annual = %q", annual[2].Text)
 	}
-	if annual[3].Text != "+3.3%" {
-		t.Errorf("delta = %q", annual[3].Text)
+	if len(annual) != 3 {
+		t.Errorf("expected three columns, got %d", len(annual))
 	}
 	if len(res.Lines) != 2 {
 		t.Errorf("expected one summary line per offer, got %#v", res.Lines)

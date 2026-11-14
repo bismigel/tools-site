@@ -129,12 +129,15 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
 .result-kv { display: flex; gap: .5rem; margin: .25rem 0; }
 .result-kv dt { font-weight: 600; }
 .result-kv dd { margin: 0; }
-.result-table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+.result-table-wrap { overflow-x: auto; }
+.result-table { width: 100%; border-collapse: collapse; }
 .result-table th,
 .result-table td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--card-separator-color, rgba(0, 0, 0, .1)); white-space: nowrap; }
 .result-table caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
 .result-table .tone-muted { opacity: .6; }
-.result-table .tone-emphasis { font-weight: 600; }
+.result-table .tone-active { background: var(--card-background-selected); }
+.result-table .tone-emphasis { background: var(--card-background-selected); font-weight: 600; }
+
 .cell-note { opacity: .7; font-size: .8em; }
 .htmx-indicator { opacity: 0; }
 .htmx-request .htmx-indicator { opacity: 1; }

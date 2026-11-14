@@ -10,6 +10,7 @@
 {{end}}
 
 {{with .Result.Table}}
+<div class="result-table-wrap">
 <table class="result-table">
   {{if .Caption}}<caption>{{.Caption}}</caption>{{end}}
   <thead><tr>{{range .Columns}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
@@ -19,6 +20,7 @@
   {{end}}
   </tbody>
 </table>
+</div>
 {{end}}
 
 {{range .Result.Warnings}}<p class="form-help">{{.}}</p>{{end}}

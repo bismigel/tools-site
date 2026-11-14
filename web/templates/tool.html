@@ -1,14 +1,21 @@
 {{define "content"}}
+{{if .Result}}
+<section class="tools-card">
+  <h2 class="section-title">Result</h2>
+  <div id="result" aria-live="polite">{{template "result" .}}</div>
+</section>
+{{end}}
+
 <section class="tools-card">
   <h2 class="section-title">{{.Tool.Name}}</h2>
   <p>{{.Tool.Summary}}</p>
   {{template "form" .}}
 </section>
 
+{{if not .Result}}
 <section class="tools-card">
   <h2 class="section-title">Result</h2>
-  <div id="result" aria-live="polite">
-    {{if .Result}}{{template "result" .}}{{end}}
-  </div>
+  <div id="result" aria-live="polite"></div>
 </section>
+{{end}}
 {{end}}

@@ -120,6 +120,7 @@ const (
 	ToneNormal Tone = iota
 	ToneEmphasis
 	ToneMuted
+	ToneActive // inside a highlighted band (working hours, best slot)
 )
 
 func (t Tone) String() string {
@@ -128,6 +129,8 @@ func (t Tone) String() string {
 		return "emphasis"
 	case ToneMuted:
 		return "muted"
+	case ToneActive:
+		return "active"
 	default:
 		return "normal"
 	}

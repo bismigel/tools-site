@@ -55,10 +55,10 @@ func NewMeetingPlanner() Tool {
 				Help: "The rows and the working window are shown in this city's time."},
 			{Name: "city2", Label: "City 2", Kind: Text,
 				Default: "New York", Suggestions: suggestions},
-			{Name: "city3", Label: "City 3", Kind: Text, Suggestions: suggestions, Help: "Optional."},
-			{Name: "city4", Label: "City 4", Kind: Text, Suggestions: suggestions, Help: "Optional."},
-			{Name: "city5", Label: "City 5", Kind: Text, Suggestions: suggestions, Help: "Optional."},
-			{Name: "city6", Label: "City 6", Kind: Text, Suggestions: suggestions, Help: "Optional."},
+			{Name: "city3", Label: "City 3", Kind: Text, Suggestions: suggestions},
+			{Name: "city4", Label: "City 4", Kind: Text, Suggestions: suggestions},
+			{Name: "city5", Label: "City 5", Kind: Text, Suggestions: suggestions},
+			{Name: "city6", Label: "City 6", Kind: Text, Suggestions: suggestions},
 			{Name: "date", Label: "Date", Kind: Text, Help: "YYYY-MM-DD. Blank means today."},
 			{Name: "work_start", Label: "Working hours from", Kind: Text, Default: "09:00",
 				Help: "In each city's own local time."},
@@ -131,8 +131,8 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 	}
 
 	table := &Table{
-		Caption: fmt.Sprintf("%s · rows in %s · working hours %s in each city's own time",
-			date.Format("Mon 2 Jan 2006"), cities[0].Name, fmtWindow(start, end)),
+		Caption: fmt.Sprintf("%s · %s local in each city",
+			date.Format("Mon 2 Jan 2006"), fmtWindow(start, end)),
 		Columns: append([]string{"Local"}, cityNames(cities)...),
 	}
 	best := slot{}
@@ -144,7 +144,7 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 		for i, t := range rows[h].local {
 			cell := Cell{Text: clockMinute(t, use12), Tone: ToneMuted}
 			if rows[h].working[i] {
-				cell.Tone = ToneNormal
+				cell.Tone = ToneActive
 			}
 			if found && h >= best.start && h < best.start+best.hours {
 				cell.Tone = ToneEmphasis
@@ -155,9 +155,11 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 		table.Rows = append(table.Rows, cells)
 	}
 
-	lines := make([]Line, 0, maxSlots)
-	for i, s := range slots {
-		key := fmt.Sprintf("Slot %d · %s", i+1, humanHours(s.hours))
+	// The best slot is the title; only alternatives are listed below it.
+	lines := make([]Line, 0, maxSlots-1)
+	for i := 1; i < len(slots); i++ {
+		s := slots[i]
+		key := fmt.Sprintf("Alternative %d · %s", i, humanHours(s.hours))
 		lines = append(lines, Line{Kind: LineKeyValue, Key: key, Value: slotSummary(rows, cities, s, use12, 0)})
 	}
 
@@ -245,15 +247,7 @@ func titleFor(rows []plannerHour, cities []city, slots []slot, meeting int, use1
 			meeting, clock(bestHour*60, use12), cities[0].Name, bestCount, len(cities))
 	}
 	s := slots[0]
-	head := fmt.Sprintf("%s overlap · %s–%s %s",
-		humanHours(s.hours),
-		clock(s.start*60, use12),
-		clock((s.start+s.hours)*60, use12),
-		cities[0].Name)
-	if rest := slotSummary(rows, cities, s, use12, 1); rest != "" {
-		return head + " · " + rest
-	}
-	return head
+	return fmt.Sprintf("%s overlap · %s", humanHours(s.hours), slotSummary(rows, cities, s, use12, 0))
 }
 
 // slotSummary renders one slot in every city, e.g.

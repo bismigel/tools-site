@@ -87,8 +87,16 @@ func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, erro
 		lines := []Line{{Kind: LineText, Value: summaryLine(a, target)}}
 		warnings := []string{
 			fmt.Sprintf("Assumptions: %s = %s hours/year", basis.label, groupWhole(hoursPerYear)),
-			fxLine(tbl, a.currency, target),
 		}
+		seenFX := make(map[string]bool, 2)
+		addFX := func(from, to string) {
+			if from == to || seenFX[from+">"+to] {
+				return
+			}
+			seenFX[from+">"+to] = true
+			warnings = append(warnings, fxLine(tbl, from, to))
+		}
+		addFX(a.currency, target)
 
 		var table *Table
 		var data map[string]any
@@ -102,14 +110,15 @@ func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, erro
 			lines = append(lines, Line{Kind: LineText, Value: summaryLine(b, target)})
 
 			table = compareTable(a, b, target)
-			title = fmt.Sprintf("%s per %s vs %s per %s",
-				money(a.currency, a.amount), a.period, money(b.currency, b.amount), b.period)
-			warnings = append(warnings, fxLine(tbl, b.currency, target))
+			addFX(b.currency, target)
 
 			delta := 0.0
 			if a.converted["year"] > 0 {
 				delta = (b.converted["year"] - a.converted["year"]) / a.converted["year"] * 100
 			}
+			title = fmt.Sprintf("%s per %s vs %s per %s — B is %s",
+				money(a.currency, a.amount), a.period, money(b.currency, b.amount), b.period,
+				deltaPhrase(delta))
 			data = map[string]any{
 				"a":     offerJSON(a),
 				"b":     offerJSON(b),
@@ -118,6 +127,9 @@ func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, erro
 		} else {
 			table = singleTable(a, target)
 			data = map[string]any{"a": offerJSON(a)}
+		}
+		if len(seenFX) == 0 {
+			warnings = append(warnings, fxLine(tbl, target, target))
 		}
 
 		return Result{
@@ -228,26 +240,28 @@ func compareTable(a, b offer, target string) *Table {
 		if p == b.period {
 			toneB = ToneEmphasis
 		}
-		av, bv := a.converted[p], b.converted[p]
-		delta := 0.0
-		if av > 0 {
-			delta = (bv - av) / av * 100
-		}
-		toneD := ToneMuted
-		if delta > 0 {
-			toneD = ToneEmphasis
-		}
 		rows = append(rows, []Cell{
 			{Text: periodLabels[p]},
-			{Text: money(target, av), Tone: toneA},
-			{Text: money(target, bv), Tone: toneB},
-			{Text: fmt.Sprintf("%+.1f%%", delta), Tone: toneD},
+			{Text: money(target, a.converted[p]), Tone: toneA},
+			{Text: money(target, b.converted[p]), Tone: toneB},
 		})
 	}
 	return &Table{
 		Caption: fmt.Sprintf("Both offers in %s", target),
-		Columns: []string{"Period", "Offer A", "Offer B", "B vs A"},
+		Columns: []string{"Period", "Offer A", "Offer B"},
 		Rows:    rows,
+	}
+}
+
+// deltaPhrase is the one-line verdict a recruiter would say: "3.3% higher".
+func deltaPhrase(delta float64) string {
+	switch {
+	case delta > 0.05:
+		return fmt.Sprintf("%.1f%% higher per year", delta)
+	case delta < -0.05:
+		return fmt.Sprintf("%.1f%% lower per year", -delta)
+	default:
+		return "about the same per year"
 	}
 }
 
