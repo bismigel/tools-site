@@ -32,7 +32,9 @@ Status legend: **done** · **next** · **todo** · **blocked**
 - **M1 before M2**: the image is trivial once the binary is; the CSS pipeline has to exist before
   the Dockerfile can `COPY` its output.
 - **M2 before M3**: ArgoCD must point at a path whose Deployment references an image that exists,
-  otherwise the first sync is `ErrImagePull` and looks like an ingress problem.
+  otherwise the first sync is `ErrImagePull` and looks like an ingress problem. Concretely: push
+  `main`, make the GHCR package public, **merge the image-bump PR**, and only then add the
+  Application (`docs/checklists/edge.md` §0).
 - **M3 before M4**: a hostname with no Ingress behind it returns a Cloudflare error that reads like a
   broken app (`docs/context/homelab.md`).
 - **M4 before M6 — a choice, not a constraint.** The opposite is defensible: build the real tools on

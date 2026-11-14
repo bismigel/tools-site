@@ -1,13 +1,32 @@
-# Checklist — edge changes (Cloudflare), do them in this order
+# Checklist — from "not deployed" to live
 
-Everything here happens **outside this repo** and touches hostnames shared with other sites. Do one
-step at a time and verify before the next. Values (tunnel id, account id, token) live in
-`~/projects/homelab-context/CREDENTIALS.md` — read them there, never copy them into a repo, an
-issue, or a chat log.
+Order matters more than speed here. Everything outside this repo touches hostnames shared with other
+sites, so do one step at a time and verify before the next. Values (tunnel id, account id, token) live
+in `~/projects/homelab-context/CREDENTIALS.md` — read them there, never copy them into a repo, an
+issue or a chat log.
 
-## 0. ArgoCD registration — `bakuran-gitops`, one PR
+## 0. The image must exist *before* ArgoCD is given the Application
 
-Three changes, prepared 2026-11-14 and left uncommitted for review:
+The Deployment's `image:` line is a placeholder until the first release. An Application synced before
+that is `ErrImagePull`, which reads like an ingress problem and wastes an afternoon. Do this first.
+
+- [ ] push `main` in **this** repo → `check` runs, `release` publishes
+      `ghcr.io/bismigel/tools-site:main-<YYYYmmdd-HHMMSS>-<sha7>` and opens the image-bump PR
+- [ ] set the **GHCR package visibility to public** (packages created by Actions default to private;
+      public means the cluster needs no `ghcr-secret`)
+- [ ] merge the image-bump PR
+- [ ] prove the tag exists before handing it to ArgoCD:
+
+```bash
+tag=$(grep -m1 '^\s*image:' deploy/k8s/deployment.yaml | sed 's/.*://')
+docker manifest inspect "ghcr.io/bismigel/tools-site:${tag}" >/dev/null && echo "tag exists: ${tag}"
+```
+
+A placeholder tag (`main-00000000-000000-0000000`) fails this check, by design.
+
+## 1. ArgoCD registration — `bakuran-gitops`, one PR
+
+Prepared 2026-11-14, left uncommitted for review:
 
 - [ ] `clusters/prod/apps/workloads/tools-site.yaml` — the Application (repo
       `https://github.com/bismigel/tools-site`, path `deploy/k8s`, namespace `apps`)
@@ -22,13 +41,10 @@ Then, from a host that can reach the API server:
 - [ ] `kubectl -n apps get pods -l app=tools-site -o wide` → 2/2 Ready, different nodes
 
 **On 2026-11-14 the dev box could not reach the cluster** (`https://192.168.2.82:6443` timed out),
-so that part runs on the cluster host, over SSH, or after fixing routing/VPN. Nothing above about
-tunnel or DNS is worth attempting until this section is green.
+so this section runs on the cluster host, over SSH, or after fixing routing/VPN.
 
-## Pre-flight
+## 2. Pre-flight
 
-- [ ] `argocd app get tools-site` → `Synced` / `Healthy` (a never-synced Application makes every
-      later symptom ambiguous)
 - [ ] `kubectl -n apps get ingress tools-site` → has an address
 - [ ] `kubectl -n apps port-forward svc/tools-site 8080:80` + `curl -sS localhost:8080/healthz` → `ok`
 - [ ] The in-cluster probe path works: from any pod,
@@ -37,20 +53,20 @@ tunnel or DNS is worth attempting until this section is green.
 
 If the pre-flight fails, **stop**. Cloudflare will only add a confusing error page on top.
 
-## 1. Tunnel hostname
+## 3. Tunnel hostname
 
 - [ ] remote-managed tunnel config gains `tools.ciceley.cc` → `http://127.0.0.1:32080`
 - [ ] other hostnames still work (`curl -sSI https://ciceley.cc/`, `https://bismigel.dev/`)
 - [ ] `curl -sSI https://tools.ciceley.cc/` → 502 is expected *and correct* until DNS exists; the
       tunnel is not reachable by name yet
 
-## 2. DNS
+## 4. DNS
 
 - [ ] `ciceley.cc` zone: proxied `CNAME tools → <tunnel-id>.cfargotunnel.com`
 - [ ] `dig +short tools.ciceley.cc` returns Cloudflare addresses
-- [ ] `curl -sSI https://tools.ciceley.cc/` → 200; certificate is Cloudflare's wildcard/edge cert
+- [ ] `curl -sSI https://tools.ciceley.cc/` → 200; certificate is Cloudflare's edge certificate
 
-## 3. Access (M3b) — application already created 2026-11-14
+## 5. Access verification (application already created 2026-11-14)
 
 - [x] Access application **"Tools (private)"**: `tools.ciceley.cc/lab` and `/api/lab`, self-hosted,
       24 h session, launcher visible
@@ -58,19 +74,16 @@ If the pre-flight fails, **stop**. Cloudflare will only add a confusing error pa
 - [x] team domain `bakuran.cloudflareaccess.com` + AUD recorded in `deploy/k8s/configmap.yaml`
       (neither is a secret; the app verifies the signed JWT, never the email header)
 - [ ] `curl -sSI https://tools.ciceley.cc/lab` → 302 to `https://bakuran.cloudflareaccess.com/…`
-- [ ] `curl -sSI https://tools.ciceley.cc/` → 200 (public zone not challenged: the Access app must
-      not accidentally cover `/*`)
+- [ ] `curl -sSI https://tools.ciceley.cc/` → 200, **not** challenged (the app must not cover `/*`)
 - [ ] from **inside** the cluster (bypasses Access), `curl -sS -H 'Host: tools.ciceley.cc'
       http://ingress-nginx-controller.ingress-nginx.svc.cluster.local/lab` → the app's own 401, not a
-      redirect — proves the app enforces auth itself
+      redirect — proves the app enforces auth itself rather than trusting the edge
 
-## 4. Monitoring
+## 6. Monitoring
 
-- [ ] `bakuran-gitops`: `tools.ciceley.cc` added to the public host list in
-      `manifests/base/monitoring/ingress-host-check.yaml`
-- [ ] after the next run (≤5 min): no `IngressHostBroken` alert for the host
+- [ ] after the next host-check run (≤5 min): no `IngressHostBroken` alert for the host
 
-## 5. Rollback
+## 7. Rollback
 
 - [ ] remove the tunnel hostname **first** (stops public traffic cleanly), then the DNS record
 - [ ] only then remove/scale the workload; leaving an Ingress with no tunnel is harmless
@@ -82,3 +95,4 @@ If the pre-flight fails, **stop**. Cloudflare will only add a confusing error pa
 - Never add a `*` wildcard path to the Access application "to be safe": it silently turns the public
   zone private, and the failure looks like "WebMCP stopped working".
 - Never touch `ciceley.cc` / `www` rules while doing this; different app, same zone.
+- Never hand-edit the `image:` tag to something that does not exist yet; that is section 0's job.

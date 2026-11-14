@@ -37,6 +37,9 @@ spec:
       containers:
         - name: tools-site
           # Owned by release.yml — never hand-edit this line (AGENTS.md rule 2).
+          # This tag is a placeholder until the first release. Do not register the
+          # ArgoCD Application before the bump PR lands, or the first sync is
+          # ErrImagePull: docs/checklists/edge.md §0.
           image: ghcr.io/bismigel/tools-site:main-00000000-000000-0000000
           imagePullPolicy: IfNotPresent
           args: ["-base-url=https://tools.ciceley.cc"]
