@@ -17,6 +17,10 @@ geometry, same dark mode — without editing the blog and without copying markup
 
 Inputs, both pinned in this repo:
 
+> **Not present yet** — this file describes M1. `theme/hugo-theme-stack` (submodule),
+> `theme/site-scss/custom.scss` (copy) and the generated `theme/tools.css` are created by
+> `docs/checklists/deploy.md` step 0. Until then, `make css` cannot run.
+
 - `theme/hugo-theme-stack` — **git submodule at tag `v4.0.3`** (the same commit the blog uses;
   `3e123a3`). Read-only.
 - `theme/site-scss/custom.scss` — **byte-for-byte copy** of
