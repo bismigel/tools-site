@@ -147,6 +147,15 @@ Residual risk to write down rather than hide: NetworkPolicy is **namespaced** â€
 can call the tools app and can forge `Cf-Access-*` headers. The JWT check is what makes that
 survivable, which is why header trust is forbidden.
 
+### Toolchain floor
+
+The Go toolchain must be the latest patched release: `go test` is not the check, `govulncheck` is.
+On 2026-11-14 it flagged 23 reachable stdlib issues in Go 1.25.7; Go 1.25 is also EOL upstream, so
+the project moved to 1.27 (dev shell and the Dockerfile's builder). The exact **patch** level is
+pinned by a `toolchain` directive in `go.mod` (`go1.27.4`), so the dev shell, CI and the image builder
+all resolve the same patched release even when nixpkgs lags. A PR that lowers the toolchain below the
+current stable line must say why.
+
 ## Dependency policy
 
 Allowed: Go stdlib; `golang.org/x/â€¦` when stdlib genuinely lacks it; htmx (front end).

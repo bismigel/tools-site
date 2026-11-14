@@ -12,7 +12,7 @@
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
-            go            # 1.25.x
+            go            # 1.27.x (Go 1.25 is EOL — see the govulncheck finding)
             dart-sass     # `sass`, for `make css`
             kustomize     # deploy/k8s
             kubeconform   # manifest validation
@@ -20,12 +20,14 @@
             curl
             git           # submodule
             watchexec     # make dev
+            govulncheck   # make ci: fail on reachable CVEs
             gcc           # go test -race needs cgo
             gnumake
           ];
           env = {
             GOFLAGS = "-mod=readonly";
-            GOTOOLCHAIN = "local";
+            # GOTOOLCHAIN stays auto on purpose: go.mod's toolchain directive pins the
+            # patched patch release (1.27.4+) that nixpkgs does not ship yet.
           };
           shellHook = ''
             echo "tools-site dev shell: $(go version)"

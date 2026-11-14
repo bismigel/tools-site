@@ -743,9 +743,9 @@ transition warning.
 
 #+BEGIN_SRC dockerfile
 # syntax=docker/dockerfile:1
-FROM golang:1.25-alpine@sha256:<pin> AS build
+FROM golang:1.27-alpine@sha256:<pin> AS build
 WORKDIR /src
-ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly GOTOOLCHAIN=local
+ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly GOTOOLCHAIN=auto
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
