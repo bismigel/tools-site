@@ -72,7 +72,15 @@ would open another bump PR, forever. The template learned this; keep the comment
 
 
 - Nothing in CI holds cluster credentials. ArgoCD pulls; CI never pushes to the cluster.
-- Secrets: only `GITHUB_TOKEN`. No PATs, no Cloudflare tokens, no Notion keys in Actions.
+- Secrets: `GITHUB_TOKEN` by default, with **one documented exception** (2026-11-14): `BUMP_TOKEN`,
+  the `github-pat` entry from Bitwarden Secrets Manager, installed as a repository secret. It is a
+  user token with `repo` + `workflow`, used only by the bump step.
+
+  Why: `GITHUB_TOKEN` cannot open pull requests in this repo, and a push made with it does not trigger
+  workflows — so the digest PR either failed to open or arrived with no checks, and a bot force-push
+  left it at `action_required`. With a user token the push is an ordinary user push: checks trigger
+  themselves and the PR opens automatically. Rotation: update the Bitwarden entry, then
+  `gh secret set BUMP_TOKEN` from it; nothing in the repo changes.
   (If a tool needs Notion at runtime it gets the secret via ExternalSecret in-cluster, not in CI.)
 - `workflow_dispatch` always available: a re-release by hand is a normal operation, not an
   exception.

@@ -132,6 +132,9 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 ### 8. Supply chain and build
 
 - `go.sum` committed; `GOFLAGS=-mod=readonly`; `GOTOOLCHAIN=local`.
+- **CI holds one user token**, `BUMP_TOKEN` (Bitwarden `github-pat`, scopes `repo` + `workflow`), for
+  the image-bump step only — see `docs/design/ci.md` for why `GITHUB_TOKEN` could not do it and how to
+  rotate. It has no cluster credentials and cannot deploy.
 - CI: `go vet`, `go test -race`, `govulncheck ./...`, and a fail on any diff after `make css`.
 - Base images pinned by digest; builder `golang:1.x-alpine@sha256:…`, runtime
   `gcr.io/distroless/static-debian12:nonroot@sha256:…`. Renovate bumps both. Justification recorded in
