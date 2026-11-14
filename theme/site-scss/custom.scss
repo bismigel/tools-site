@@ -324,3 +324,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .tools-card-body { padding: 1.15rem; }
   .result-table { font-size: .8rem; }
 }
+
+/* tools: the current hour gets a band, not just a small note */
+.result-table tr.is-now td {
+  border-top: 2px solid var(--accent-color);
+  border-bottom: 2px solid var(--accent-color);
+  background: var(--card-background-selected);
+}
+.result-table tr.is-now td:first-child { font-weight: 600; }

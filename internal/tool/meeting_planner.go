@@ -162,6 +162,7 @@ func runMeetingPlanner(_ context.Context, in Values) (Result, error) {
 		cells := []Cell{{Text: clock(h*60, use12), Tone: ToneMuted}}
 		if isToday && h == nowLocal.Hour() {
 			cells[0].Note = "now"
+			cells[0].Now = true
 		}
 		for i, t := range rows[h].local {
 			cell := Cell{Text: clockMinute(t, use12), Tone: ToneMuted}

@@ -48,10 +48,28 @@ test.describe("meeting_planner", () => {
     await expect(page.locator("#result table tbody tr")).toHaveCount(24);
   });
 
-  test("shows the current time and marks the hour", async ({ page }) => {
+  test("highlights the current hour row and paints it", async ({ page }) => {
     await page.goto("/t/meeting_planner?city1=Dubai&city2=Manila"); // default date = today
+
     await expect(page.locator("#result")).toContainText("Now");
-    await expect(page.locator("#result .cell-note").filter({ hasText: /^now$/ })).toHaveCount(1);
+    const row = page.locator("#result tr.is-now");
+    await expect(row).toHaveCount(1);
+
+    // It is the *right* row: same hour as the Now line, not merely "a" marker.
+    const nowLine = await page.locator("#result .result-kv dd").first().innerText();
+    const rowLabel = await row.locator("td").first().innerText();
+    const hour = (t: string) => (t.match(/(\d{1,2}):/) || [])[1];
+    expect(hour(rowLabel)).toBe(hour(nowLine));
+    expect(rowLabel).toContain("now");
+
+    // And it is visibly a highlight: an accent border and a tinted background,
+    // so a CSS regression fails here rather than in someone's eyes.
+    const paint = await row.locator("td").first().evaluate((td) => {
+      const cs = getComputedStyle(td);
+      return { border: cs.borderTopWidth, bg: cs.backgroundColor };
+    });
+    expect(paint.border).toBe("2px");
+    expect(paint.bg).not.toBe("rgba(0, 0, 0, 0)");
   });
 
   test("renders 12-hour labels on request", async ({ page }) => {

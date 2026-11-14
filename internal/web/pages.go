@@ -49,6 +49,7 @@ type cellView struct {
 	Tone string
 	Note string
 	Num  bool
+	Now  bool
 }
 
 type columnView struct {
@@ -70,6 +71,16 @@ type resultView struct {
 	Warnings []string
 }
 
+// isNowRow is used by the template to put the highlight on the row, not the cell.
+func isNowRow(cells []cellView) bool {
+	for _, c := range cells {
+		if c.Now {
+			return true
+		}
+	}
+	return false
+}
+
 func viewResult(res tool.Result) *resultView {
 	v := &resultView{Title: res.Title, Warnings: res.Warnings}
 	for _, l := range res.Lines {
@@ -87,7 +98,7 @@ func viewResult(res tool.Result) *resultView {
 			cells := make([]cellView, 0, len(row))
 			for i, c := range row {
 				cells = append(cells, cellView{
-					Text: c.Text, Tone: c.Tone.String(), Note: c.Note, Num: numeric(i),
+					Text: c.Text, Tone: c.Tone.String(), Note: c.Note, Num: numeric(i), Now: c.Now,
 				})
 			}
 			t.Rows = append(t.Rows, cells)

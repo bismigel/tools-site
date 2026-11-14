@@ -47,6 +47,7 @@ func (r *Renderer) Partial(w io.Writer, name string, data any) error {
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"eqs": func(a, b string) bool { return a == b },
+		"eqs":      func(a, b string) bool { return a == b },
+		"isNowRow": isNowRow,
 	}
 }

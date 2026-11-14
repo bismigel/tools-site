@@ -495,7 +495,9 @@ shared link shows what the sender saw.
 
 *Output order:* verdict line → a **Now** line (each city's current clock time, shown even when another
 date is selected) → up to three slot summaries → grid (~Table~) → caveats. When the selected date is
-today, the anchor hour row carries a `now` note, so the reader can locate themselves in the grid. The anchor
+today, the anchor hour row carries a `now` note **and is painted** (accent top/bottom border plus the
+selected-surface tint), so the reader can locate themselves without counting rows. The paint is asserted
+in Playwright by computed style, not by class name alone. The anchor
 column is sticky and rows highlight on hover, so a reader can track one hour across the grid. On narrow
 screens the grid scrolls inside its own card; the page never scrolls sideways.
 

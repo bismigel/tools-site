@@ -153,8 +153,8 @@ mentally adding offsets and getting the day wrong.
 
 **Output**, in this order, because the answer comes before the detail:
 
-0. **Where you are now** — each city's current time, and a `now` marker on the matching hour row when
-   the date is today. Without it the grid is a beautiful abstraction of a day that is already happening.
+0. **Where you are now** — each city's current time, and the matching hour row banded in the accent
+   colour (with a `now` label) when the date is today. Without it the grid is a beautiful abstraction of a day that is already happening.
 1. **The verdict**, one line: *"Best overlap: 3 hours — 14:00–17:00 London = 09:00–12:00 New York."*
    If there is no overlap, say so plainly and name the closest near-miss.
 2. **The grid** — 24 rows, one column per city, each cell showing the local time with a `+1` / `−1`

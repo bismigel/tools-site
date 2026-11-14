@@ -16,7 +16,7 @@
   <thead><tr>{{range .Columns}}<th scope="col"{{if .Num}} class="num"{{end}}>{{.Name}}</th>{{end}}</tr></thead>
   <tbody>
   {{range .Rows}}
-    <tr>{{range .}}<td class="tone-{{.Tone}}{{if .Num}} num{{end}}"{{if .Note}} title="{{.Note}}"{{end}}>{{.Text}}{{if .Note}} <span class="cell-note">{{.Note}}</span>{{end}}</td>{{end}}</tr>
+    <tr{{if isNowRow .}} class="is-now"{{end}}>{{range .}}<td class="tone-{{.Tone}}{{if .Num}} num{{end}}"{{if .Note}} title="{{.Note}}"{{end}}>{{.Text}}{{if .Note}} <span class="cell-note">{{.Note}}</span>{{end}}</td>{{end}}</tr>
   {{end}}
   </tbody>
 </table>

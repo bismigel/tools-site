@@ -143,6 +143,9 @@ type Cell struct {
 	Text string
 	Tone Tone
 	Note string
+	// Now marks the cell that represents the current hour, so the renderer can
+	// highlight its row. It is a fact about time, not a style.
+	Now bool
 }
 
 // Table is a generic grid result (rate tables, timezone grids). It is a
