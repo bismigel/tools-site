@@ -1,0 +1,19 @@
+# Build output
+/toolsd
+/dist/
+/result
+/result-*
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Tooling scratch
+theme/.tmp/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
