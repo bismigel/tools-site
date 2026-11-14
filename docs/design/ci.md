@@ -86,6 +86,15 @@ The fallback is deliberate: a permission the repo owner controls should not make
 One stable branch (`bump-image`, force-pushed) means consecutive releases refresh a single PR rather
 than leaving stale bump branches behind.
 
+Two platform behaviours found the hard way on 2026-11-14:
+
+- A push made with `GITHUB_TOKEN` **does not trigger other workflows**, so the digest PR initially
+  arrived with no checks. `release.yml` dispatches `check.yml` on the branch (`actions: write`), which
+  runs on the exact SHA but does not appear in the PR's Checks tab.
+- The `pull_request` run for a branch force-pushed by the Actions bot starts as
+  **`action_required`** and needs one approval. That approval stays manual: it is the same control that
+  stops a compromised token from executing workflows unreviewed.
+
 ## Things CI deliberately does not do
 
 - **No auto-merge of the bump PR.** A human sees the image tag that reaches production.

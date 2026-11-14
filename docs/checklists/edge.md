@@ -14,6 +14,9 @@ that is `ErrImagePull`, which reads like an ingress problem and wastes an aftern
       `ghcr.io/bismigel/tools-site:main-<YYYYmmdd-HHMMSS>-<sha7>` and opens the image-bump PR
 - [ ] set the **GHCR package visibility to public** (packages created by Actions default to private;
       public means the cluster needs no `ghcr-secret`)
+- [ ] if the bump PR says "workflow awaiting approval", approve it (one click): the branch was
+      force-pushed by the Actions bot, so the `pull_request` run needs a human. Do **not** automate that
+      approval — it is the same gate that stops a compromised token from running workflows unreviewed
 - [ ] merge the image-bump PR
 - [ ] prove the cluster can pull **the exact digest** before handing ArgoCD the Application:
 
