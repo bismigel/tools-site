@@ -19,10 +19,18 @@ that is `ErrImagePull`, which reads like an ingress problem and wastes an aftern
 
 ```bash
 ref=$(grep -m1 '^\s*image:' deploy/k8s/deployment.yaml | awk '{print $2}')
-docker manifest inspect "$ref" >/dev/null \
-  && echo "pullable: $ref" \
-  || echo "NOT pullable (missing digest, or package still private): $ref"
+repo=${ref%@*}; repo=${repo%%:*}
+digest=${ref#*@}
+tok=$(curl -fsS "https://ghcr.io/token?scope=repository:${repo#ghcr.io/}:pull" | jq -r .token)
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $tok" \
+  -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+  "https://ghcr.io/v2/${repo#ghcr.io/}/manifests/${digest}"
+# 200 = pullable without credentials; 401/403 = private or missing.
 ```
+
+Ask the registry, not a local docker daemon: `docker manifest inspect` (or the podman shim's) can answer
+from cached credentials and report a false negative — it did on 2026-11-14 for a digest the registry
+was serving anonymously.
 
 Non-zero means one of **two** things — that digest does not exist, *or* the package is private — and
 both make the pod `ErrImagePull`. Treat either as "go back a step". The committed digest is all
