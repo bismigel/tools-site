@@ -31,6 +31,9 @@ css-watch:
 run: build
 	$(BIN) -addr=$(ADDR)
 
+run-dev: build
+	$(BIN) -dev -addr=$(ADDR) -base-url=http://localhost$(ADDR)
+
 dev:
 	@scripts/dev.sh
 

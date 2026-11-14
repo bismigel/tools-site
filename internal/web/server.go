@@ -135,12 +135,20 @@ func (s *Server) robots(w http.ResponseWriter, r *http.Request) {
 // under web/static, so it gets its own route rather than a copy on disk.
 func (s *Server) stylesheet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", s.cacheControl())
 	_, _ = w.Write(s.cfg.CSS)
 }
 
+// cacheControl keeps prod assets immutable and makes dev edits show on refresh.
+func (s *Server) cacheControl() string {
+	if s.cfg.Dev {
+		return "no-store"
+	}
+	return "public, max-age=31536000, immutable"
+}
+
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", s.cacheControl())
 	http.StripPrefix("/static/", http.FileServerFS(s.cfg.Static)).ServeHTTP(w, r)
 }
 
