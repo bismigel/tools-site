@@ -706,3 +706,50 @@ func TestDevStylesheetIsReadPerRequest(t *testing.T) {
 		t.Fatalf("prod served %q", got)
 	}
 }
+
+// Asset URLs are served immutable for a year, so they must carry a content hash;
+// without one, a CSS change never reaches a browser or the CDN. That is exactly
+// what happened on the first post-deploy style change (Cloudflare kept the old file).
+func TestAssetVersionBustsImmutableCache(t *testing.T) {
+	css, err := os.ReadFile("../../theme/tools.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := tool.NewRegistry()
+	if err := reg.Register(textTool()); err != nil {
+		t.Fatal(err)
+	}
+	build := func(c []byte) *Server {
+		t.Helper()
+		srv, err := New(Config{
+			Registry:  reg,
+			Templates: os.DirFS("../.."),
+			Static:    os.DirFS("../../web/static"),
+			CSS:       c,
+			Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return srv
+	}
+
+	a := build(css)
+	b := build(append([]byte("/* changed */\n"), css...))
+	if a.assetVersion == b.assetVersion {
+		t.Fatal("different stylesheets produced the same asset version")
+	}
+
+	rec := httptest.NewRecorder()
+	a.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	page := rec.Body.String()
+	for _, want := range []string{
+		"/static/css/tools.css?v=" + a.assetVersion,
+		"/static/js/htmx.min.js?v=" + a.assetVersion,
+		"/static/js/webmcp.js?v=" + a.assetVersion,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
+}

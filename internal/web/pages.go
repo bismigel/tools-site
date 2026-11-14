@@ -36,6 +36,8 @@ type page struct {
 	// SiteURL + Path make a canonical link; an empty SiteURL omits it.
 	SiteURL string
 	Path    string
+	// AssetVersion busts the immutable cache on /static and /static/css.
+	AssetVersion string
 }
 
 type lineView struct {
@@ -110,11 +112,12 @@ func viewResult(res tool.Result) *resultView {
 
 func (s *Server) basePage() page {
 	return page{
-		SiteURL:  strings.TrimRight(s.cfg.BaseURL, "/"),
-		SiteName: siteName,
-		SiteDesc: siteDesc,
-		Year:     s.now().Year(),
-		Dev:      s.cfg.Dev,
+		SiteURL:      strings.TrimRight(s.cfg.BaseURL, "/"),
+		AssetVersion: s.assetVersion,
+		SiteName:     siteName,
+		SiteDesc:     siteDesc,
+		Year:         s.now().Year(),
+		Dev:          s.cfg.Dev,
 	}
 }
 

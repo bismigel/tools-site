@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,12 +34,13 @@ type Config struct {
 
 // Server is the whole HTTP surface.
 type Server struct {
-	cfg     Config
-	log     *slog.Logger
-	r       *Renderer
-	mux     http.Handler
-	now     func() time.Time
-	metrics *metrics
+	cfg          Config
+	assetVersion string
+	log          *slog.Logger
+	r            *Renderer
+	mux          http.Handler
+	now          func() time.Time
+	metrics      *metrics
 }
 
 // New validates the configuration and builds the mux. It fails loudly rather
@@ -61,9 +64,34 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 5 * time.Second
 	}
-	s := &Server{cfg: cfg, log: cfg.Log, r: NewRenderer(cfg.Templates), now: time.Now, metrics: newMetrics()}
+	s := &Server{
+		cfg: cfg, log: cfg.Log, r: NewRenderer(cfg.Templates),
+		now: time.Now, metrics: newMetrics(), assetVersion: assetVersion(cfg),
+	}
 	s.mux = s.routes()
 	return s, nil
+}
+
+// assetVersion fingerprints the stylesheet and every static file. It is appended
+// to asset URLs because they are served immutable for a year: without a content
+// hash, a CSS change never reaches a browser or the CDN. Found the hard way on
+// the first post-deploy style change, when Cloudflare kept serving the old file.
+func assetVersion(cfg Config) string {
+	h := sha256.New()
+	h.Write(cfg.CSS)
+	_ = fs.WalkDir(cfg.Static, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		b, rerr := fs.ReadFile(cfg.Static, p)
+		if rerr != nil {
+			return nil
+		}
+		fmt.Fprintf(h, "|%s|%d|", p, len(b))
+		h.Write(b)
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))[:10]
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
