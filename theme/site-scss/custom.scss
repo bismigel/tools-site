@@ -268,3 +268,59 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
 /* tools: money tables fill the card; grids size to their content so a shaded
    column does not stretch into empty space */
 .result-table:not(.result-table--numbers) { width: auto; min-width: 50%; }
+
+/* tools: page furniture */
+.page-header { margin: 0 0 1.75rem; }
+.page-title { font-size: 2.6rem; margin: 0 0 .35rem; line-height: 1.15; }
+.page-subtitle { margin: 0; opacity: .8; max-width: 62ch; }
+.page-note { margin: 1.5rem 0 0; opacity: .75; font-size: .9rem; }
+
+.tool-card { display: block; color: inherit; text-decoration: none; }
+.tool-card-title {
+  font-family: var(--article-font-family); font-size: 1.9rem; font-weight: 600;
+  margin: 0 0 .3rem; color: var(--card-text-color-main);
+}
+.tool-card-summary { margin: 0; opacity: .85; }
+.tool-card-cta {
+  display: inline-block; margin-top: .7rem; font-size: .8rem; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--accent-color);
+}
+.tool-card:hover .tool-card-cta { text-decoration: underline; }
+
+.empty { margin: 0; opacity: .7; }
+.tool-links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; }
+.tool-links a { color: var(--accent-color); font-weight: 600; text-decoration: none; }
+.tool-links a:hover { text-decoration: underline; }
+
+/* keyboard users get a visible focus ring; the theme has none on our controls */
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus {
+  left: 1rem; top: 1rem; z-index: 20; padding: .5rem .9rem;
+  background: var(--card-background); color: var(--body-text-color);
+  border-radius: var(--card-border-radius); box-shadow: var(--shadow-l1);
+}
+a:focus-visible, button:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent-color); outline-offset: 2px;
+}
+
+/* tools: on a phone the sidebar is chrome, not content — keep it to one band */
+@media (max-width: 768px) {
+  /* The theme's header is a column and the avatar size is a variable, so the
+     override is a variable plus a direction, not a pile of property fights. */
+  :root { --sidebar-avatar-size: 54px; }
+  .sidebar { padding: .75rem 0 0; }
+  .sidebar header { flex-direction: row; align-items: center; gap: .9rem; margin: 0; }
+  .sidebar .site-avatar { margin: 0; }
+  .sidebar .site-meta { margin: 0; }
+  .sidebar .site-name { font-size: 1.5rem; margin: 0; }
+  .sidebar .site-description { font-size: .85rem; margin: .15rem 0 0; }
+  .sidebar .site-footer { display: none; }
+  .tools-nav { margin-top: .6rem; padding-top: .6rem; }
+  .page-header { margin-bottom: 1.25rem; }
+  .page-title { font-size: 2rem; }
+  .result-title { font-size: 1.35rem; line-height: 1.25; }
+  .tools-card { padding: 1.15rem; }
+  .tools-card-body { padding: 1.15rem; }
+  .result-table { font-size: .8rem; }
+}

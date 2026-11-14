@@ -1,21 +1,24 @@
 {{define "content"}}
+<header class="page-header">
+  <h1 class="page-title">{{.Tool.DisplayName}}</h1>
+  <p class="page-subtitle">{{.Tool.Summary}}</p>
+</header>
+
 {{if .Result}}
 <section class="tools-card">
-  <h2 class="section-title">Result</h2>
   <div id="result" aria-live="polite">{{template "result" .}}</div>
 </section>
 {{end}}
 
 <section class="tools-card">
-  <h2 class="section-title">{{.Tool.Name}}</h2>
-  <p>{{.Tool.Summary}}</p>
   {{template "form" .}}
 </section>
 
 {{if not .Result}}
 <section class="tools-card">
-  <h2 class="section-title">Result</h2>
-  <div id="result" aria-live="polite"></div>
+  <div id="result" aria-live="polite">
+    <p class="empty">Fill this in and the answer appears here — the URL keeps it, so you can bookmark or share it.</p>
+  </div>
 </section>
 {{end}}
 {{end}}

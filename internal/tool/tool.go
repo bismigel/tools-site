@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Sentinel errors. The web layer maps them to status codes; tools should only
@@ -198,6 +199,19 @@ type Tool struct {
 	Submit      Submit
 	Inputs      []Input
 	Run         func(ctx context.Context, in Values) (Result, error)
+}
+
+// DisplayName is the human title shown in the UI. The identifier (Name) keeps
+// underscores because it is a URL segment, a JSON key and an MCP tool name; a
+// person should read "Rate converter", not "rate_converter".
+func (t Tool) DisplayName() string {
+	s := strings.ReplaceAll(t.Name, "_", " ")
+	if s == "" {
+		return t.Name
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
 
 // Input looks up a declared field by name.

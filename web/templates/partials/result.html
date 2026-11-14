@@ -1,6 +1,6 @@
 {{define "result"}}
 {{if .Result}}
-<h3 class="result-title">{{.Result.Title}}</h3>
+<h2 class="result-title">{{.Result.Title}}</h2>
 
 {{range .Result.Lines}}
   {{if eq .Kind "code"}}<pre class="result-code"><code>{{.Value}}</code></pre>

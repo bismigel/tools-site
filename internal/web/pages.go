@@ -130,7 +130,7 @@ func (s *Server) toolPageFor(v tool.Visibility) http.HandlerFunc {
 		}
 
 		p := s.basePage()
-		p.Title = t.Name
+		p.Title = t.DisplayName()
 		p.Description = t.Summary
 		p.Tool = &t
 		p.Get = t.Submit == tool.SubmitGet
@@ -192,7 +192,7 @@ func (s *Server) execute(w http.ResponseWriter, r *http.Request, t tool.Tool, ra
 	clean, errs := t.Clean(raw)
 
 	p := s.basePage()
-	p.Title = t.Name
+	p.Title = t.DisplayName()
 	p.Description = t.Summary
 	p.Tool = &t
 	p.Get = t.Submit == tool.SubmitGet

@@ -107,6 +107,7 @@ func (s *Server) routes() http.Handler {
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	p := s.basePage()
 	p.Title = "Not found"
+	p.Tools = s.cfg.Registry.All(tool.Public)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNotFound)

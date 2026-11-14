@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{if .Title}}{{.Title}} · {{end}}{{.SiteName}}</title>
+  <title>{{if and .Title (ne .Title .SiteName)}}{{.Title}} · {{end}}{{.SiteName}}</title>
   <meta name="description" content="{{.Description}}">
   <link rel="icon" href="/static/img/avatar.svg" type="image/svg+xml">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
@@ -14,6 +14,7 @@
   {{if .Dev}}<script src="/static/js/dev.js" defer></script>{{end}}
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="container main-container flex on-phone--column extended">
     <aside class="sidebar left-sidebar sticky">
       <header>
@@ -21,7 +22,8 @@
           <a href="/"><img class="site-logo" src="/static/img/avatar.svg" alt="" width="96" height="96"></a>
         </figure>
         <div class="site-meta">
-          <h1 class="site-name"><a href="/">{{.SiteName}}</a></h1>
+          <!-- A page has one h1; that is the tool or page title below, not the brand. -->
+          <p class="site-name"><a href="/">{{.SiteName}}</a></p>
           <h2 class="site-description">{{.SiteDesc}}</h2>
         </div>
       </header>
@@ -37,7 +39,7 @@
       </footer>
     </aside>
 
-    <main class="main full-width">
+    <main class="main full-width" id="main">
       {{template "content" .}}
     </main>
   </div>

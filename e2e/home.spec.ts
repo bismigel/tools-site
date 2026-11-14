@@ -38,3 +38,36 @@ test.describe("home", () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe("page furniture", () => {
+  test("tool titles are written for people, not identifiers", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Rate converter", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "rate_converter", exact: true })).toHaveCount(0);
+  });
+
+  test("the whole card is the link, and the tool page has one h1", async ({ page }) => {
+    await page.goto("/");
+    await page.locator('a.tool-card[href="/t/meeting_planner"]').click();
+    await expect(page).toHaveURL(/\/t\/meeting_planner$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Meeting planner");
+  });
+
+  test("the 404 page offers the tools instead of a dead end", async ({ page }) => {
+    await page.goto("/nope");
+    for (const name of ["Slugify", "Rate converter", "Meeting planner"]) {
+      await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
+    }
+  });
+
+  test("the first tab stop is the skip link", async ({ page }) => {
+    await page.goto("/");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".skip-link")).toBeFocused();
+  });
+
+  test("the empty result card explains what will happen", async ({ page }) => {
+    await page.goto("/t/slugify");
+    await expect(page.locator("#result")).toContainText("Fill this in");
+  });
+});

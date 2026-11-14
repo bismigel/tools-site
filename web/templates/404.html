@@ -1,6 +1,13 @@
 {{define "content"}}
+<header class="page-header">
+  <h1 class="page-title">Not found</h1>
+  <p class="page-subtitle">There is nothing at that address.</p>
+</header>
+
 <section class="tools-card">
-  <h2 class="section-title">Not found</h2>
-  <p>There is nothing at that address. Try the <a href="/">tool list</a>.</p>
+  <h2 class="section-title">Try one of these</h2>
+  <ul class="tool-links">
+    {{range .Tools}}<li><a href="/t/{{.Name}}">{{.DisplayName}}</a></li>{{end}}
+  </ul>
 </section>
 {{end}}
