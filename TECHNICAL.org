@@ -121,6 +121,8 @@ tools-site/
 │   ├── schema.go                 []Input → JSON Schema
 │   ├── render.go                 template sets; fragment vs full page
 │   ├── errors.go                 sentinel → status + safe message
+│   ├── mcp.go                    /mcp JSON-RPC: initialize, tools/list, tools/call
+│   ├── metrics.go                /metrics, hand-rolled Prometheus text
 │   ├── auth.go                   Access JWT + service token verification
 │   └── middleware.go             recover, request-id, log, headers, limits, timeout
 ├── web/

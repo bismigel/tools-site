@@ -41,9 +41,9 @@ Do not read the whole repo before starting. M1 needs: `internal/tool/`, one tool
 
 ## Commands
 
-There is **no `flake.nix` yet** — writing it is the first task of M1 (packages: `go`, `sass`
-(dart-sass), `kustomize`, `kubeconform`, `jq`, `curl`, `git` for the submodule, `watchexec` for
-the dev loop, and `nodejs` for the WebMCP shim test). Until it exists, the commands below assume those binaries are on `PATH`.
+`flake.nix` provides the dev shell: `go` (1.27, patch pinned by `go.mod`), `dart-sass`, `kustomize`,
+`kubeconform`, `jq`, `curl`, `git`, `watchexec` (dev loop), `nodejs` (JS + Playwright tests),
+`gcc` (`-race` needs cgo) and `govulncheck`. Run everything inside `nix develop`.
 
 ```bash
 nix develop                     # go, sass (CSS), kustomize, kubeconform, jq, curl, watchexec
