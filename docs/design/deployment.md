@@ -54,7 +54,7 @@ spec:
           labelSelector: { matchLabels: { app: tools-site } }
       containers:
         - name: tools-site
-          image: ghcr.io/ciceley/tools-site:main-…   # CI owns this line
+          image: ghcr.io/bismigel/tools-site:main-…   # CI owns this line
           ports: [{ containerPort: 8080 }]
           readinessProbe: { httpGet: { path: /readyz, port: 8080 }, initialDelaySeconds: 3, periodSeconds: 5 }
           livenessProbe:  { httpGet: { path: /healthz, port: 8080 }, initialDelaySeconds: 10, periodSeconds: 10 }
@@ -108,7 +108,7 @@ No `tls:` block. TLS ends at Cloudflare, same as `ciceley.cc`.
 
 1. `clusters/prod/apps/workloads/tools-site.yaml` — the Application (YAML in
    `docs/context/homelab.md`).
-2. `clusters/prod/projects/projects.yaml` — add `https://github.com/Ciceley/tools-site` under
+2. `clusters/prod/projects/projects.yaml` — add `https://github.com/bismigel/tools-site` under
    `sourceRepos`. Skipping this yields `InvalidSpecError: … repo is not permitted`.
 3. Private repo? Add an ArgoCD repository credential (or make the repo public; nothing here is
    secret).

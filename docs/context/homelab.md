@@ -31,7 +31,7 @@ metadata:
 spec:
   project: prod
   source:
-    repoURL: https://github.com/Ciceley/tools-site
+    repoURL: https://github.com/bismigel/tools-site
     targetRevision: main
     path: deploy/k8s
   destination:

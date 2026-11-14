@@ -30,7 +30,7 @@ read-only.
 **ESO / External Secrets Operator** — pulls secrets from Bitwarden into Kubernetes Secrets. This
 repo only ever commits an `ExternalSecret` reference, never a value.
 
-**GHCR** — GitHub Container Registry, `ghcr.io/ciceley/tools-site`. CI pushes
+**GHCR** — GitHub Container Registry, `ghcr.io/bismigel/tools-site`. CI pushes
 `main-<timestamp>-<sha>` tags; a public package means the cluster needs no pull secret.
 
 **Hugo** — the static-site generator behind `ciceley.cc`. Not used to *serve* this app; it is used

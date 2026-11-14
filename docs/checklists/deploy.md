@@ -5,7 +5,7 @@ applicable yet, write why instead of deleting the line.
 
 ## 0. Repo
 
-- [ ] `gh repo create Ciceley/tools-site --public --source . --push` (or copy `homelab-app-template`
+- [ ] `gh repo create bismigel/tools-site --public --source . --push` (or copy `homelab-app-template`
       and run `./scripts/init.sh tools tools.ciceley.cc 8080 apps ciceley` **in a fresh tree**, then
       read the diff)
 - [ ] `git submodule add https://github.com/CaiJimmy/hugo-theme-stack theme/hugo-theme-stack`
@@ -30,7 +30,7 @@ applicable yet, write why instead of deleting the line.
 - [ ] `make image` → image builds locally
 - [ ] `docker run --rm -p 8080:8080 tools-site:check` → same responses as `make run`
 - [ ] PR → `check.yml` green (CSS drift, vet, test, govulncheck, image, manifests)
-- [ ] merge to `main` → `release.yml` pushed `ghcr.io/ciceley/tools-site:main-…`
+- [ ] merge to `main` → `release.yml` pushed `ghcr.io/bismigel/tools-site:main-…`
 - [ ] bump PR opened automatically (and `paths-ignore` prevents a second release)
 - [ ] GHCR package visibility set deliberately (public ⇒ no pull secret)
 

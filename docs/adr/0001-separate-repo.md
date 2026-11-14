@@ -10,7 +10,8 @@ blog's release workflow builds the whole repo on every push and then `sed`s the 
 
 ## Decision
 
-Separate repo, `github.com/Ciceley/tools-site`, based on `homelab-app-template`.
+Separate repo, `github.com/bismigel/tools-site` (**public**, created 2026-11-12), based on
+`homelab-app-template`.
 
 ## Reasons
 
