@@ -236,3 +236,16 @@ h1:not(.site-name), h2, h3, h4, h5, h6,
    accessible name (Playwright and screen readers both read "Amount *" otherwise) */
 .form-row.is-required label::after { content: " *"; color: var(--accent-color); }
 .form-row input[type="checkbox"] { width: auto; }
+
+/* tools: sections and numeric columns */
+.form-group { border: 0; margin: 0 0 1.75rem; padding: 0; min-width: 0; }
+.form-group > legend {
+  font-weight: 600; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+  opacity: .7; padding: 0 0 .6rem;
+}
+.form-group:last-of-type { margin-bottom: .5rem; }
+.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* tools: numeric columns must beat the theme's `td { text-align: left }` */
+.result-table td.num, .result-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.result-table--numbers th:first-child, .result-table--numbers td:first-child { width: 34%; }

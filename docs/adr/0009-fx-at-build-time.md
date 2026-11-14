@@ -42,8 +42,12 @@ right to within a day".
   normalisation; not fine for invoicing, and the tool says so by omission of any such claim.
 - **Weekend and holiday staleness**: Friday's rate applies until Monday's publication. The date is
   always shown.
-- **Coverage is ECB's currency set** (~30). Currencies outside it (NGN, PKR, …) are reported as
+- **Coverage is ECB's currency set** (~31). Currencies outside it (NGN, PKR, …) are reported as
   unsupported rather than guessed (spec §7.2 Q15).
+- **One exception, and it is labelled:** AED is not an ECB quote, so it is derived at build time from
+  its fixed peg to the USD (3.6725 since 1997) and every result that uses it carries the line
+  "AED: derived from its fixed peg to the USD at 3.6725 (not an ECB quote)". Deriving a hard peg is
+  arithmetic; deriving a floating currency would be invention.
 - A CI job can fail silently; mitigated by an alert on file age and by the date being user-visible.
 
 ## Rejected

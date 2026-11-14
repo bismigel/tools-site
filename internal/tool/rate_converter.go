@@ -36,20 +36,31 @@ func NewRateConverter(tbl *fx.Table) Tool {
 		Submit:      SubmitGet,
 		Inputs: []Input{
 			{Name: "amount", Label: "Amount", Kind: Number, Required: true, Max: 10000000,
-				Help: "The number you were quoted, e.g. 550."},
-			{Name: "currency", Label: "Currency", Kind: Select, Required: true, Options: currencies, Default: "GBP"},
-			{Name: "period", Label: "Quoted per", Kind: Select, Required: true, Options: ratePeriods, Default: "day"},
-			{Name: "target", Label: "Show in", Kind: Select, Required: true, Options: currencies, Default: "GBP"},
-			{Name: "amount2", Label: "Second offer (optional)", Kind: Number, Max: 10000000,
-				Help: "Fill this to compare two offers side by side."},
-			{Name: "currency2", Label: "Second offer currency", Kind: Select, Options: currencies, Default: "GBP"},
-			{Name: "period2", Label: "Second offer quoted per", Kind: Select, Options: ratePeriods, Default: "day"},
-			{Name: "basis", Label: "Working basis", Kind: Select,
+				Group: "The rate you were quoted",
+				Help:  "e.g. 550"},
+			{Name: "currency", Label: "Currency", Kind: Select, Required: true, Options: currencies, Default: "AED",
+				Group: "The rate you were quoted"},
+			{Name: "period", Label: "Quoted per", Kind: Select, Required: true, Options: ratePeriods, Default: "day",
+				Group: "The rate you were quoted"},
+			{Name: "target", Label: "Convert to", Kind: Select, Required: true, Options: currencies, Default: "AED",
+				Group: "The rate you were quoted"},
+			{Name: "basis", Label: "Basis", Kind: Select,
 				Options: []string{"contractor", "employee", "custom"}, Default: "contractor",
-				Help: "The three numbers below are used only when this is custom."},
-			{Name: "hours_per_day", Label: "Hours per day", Kind: Number, Min: 1, Max: 24, Default: "8"},
-			{Name: "days_per_week", Label: "Days per week", Kind: Number, Min: 1, Max: 7, Default: "5"},
-			{Name: "weeks_per_year", Label: "Weeks per year", Kind: Number, Min: 1, Max: 52, Default: "46"},
+				Group: "Working basis",
+				Help:  "Contractor is 8h × 5d × 46wk. The numbers below apply when this is custom."},
+			{Name: "hours_per_day", Label: "Hours per day", Kind: Number, Min: 1, Max: 24, Default: "8",
+				Group: "Working basis"},
+			{Name: "days_per_week", Label: "Days per week", Kind: Number, Min: 1, Max: 7, Default: "5",
+				Group: "Working basis"},
+			{Name: "weeks_per_year", Label: "Weeks per year", Kind: Number, Min: 1, Max: 52, Default: "46",
+				Group: "Working basis"},
+			{Name: "amount2", Label: "Second offer amount", Kind: Number, Max: 10000000,
+				Group: "Compare a second offer (optional)",
+				Help:  "Leave empty to skip the comparison."},
+			{Name: "currency2", Label: "Second offer currency", Kind: Select, Options: currencies, Default: "AED",
+				Group: "Compare a second offer (optional)"},
+			{Name: "period2", Label: "Second offer quoted per", Kind: Select, Options: ratePeriods, Default: "day",
+				Group: "Compare a second offer (optional)"},
 		},
 		Run: runRateConverter(tbl),
 	}
@@ -101,8 +112,9 @@ func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, erro
 		var table *Table
 		var data map[string]any
 		title := fmt.Sprintf("%s per %s", money(a.currency, a.amount), a.period)
+		comparing := strings.TrimSpace(in.Get("amount2")) != ""
 
-		if strings.TrimSpace(in.Get("amount2")) != "" {
+		if comparing {
 			b, err := buildOffer(tbl, in.Get("amount2"), in.Get("currency2"), in.Get("period2"), target, basis, hoursPerYear)
 			if err != nil {
 				return Result{}, err
@@ -130,6 +142,15 @@ func runRateConverter(tbl *fx.Table) func(context.Context, Values) (Result, erro
 		}
 		if len(seenFX) == 0 {
 			warnings = append(warnings, fxLine(tbl, target, target))
+		}
+		used := []string{a.currency, target}
+		if comparing {
+			used = append(used, in.Get("currency2"))
+		}
+		for _, cur := range used {
+			if note, ok := tbl.IsDerived(cur); ok {
+				warnings = append(warnings, note)
+			}
 		}
 
 		return Result{
@@ -218,7 +239,7 @@ func singleTable(a offer, target string) *Table {
 			tone = ToneEmphasis
 		}
 		rows = append(rows, []Cell{
-			{Text: periodLabels[p], Tone: tone},
+			{Text: periodLabels[p]},
 			{Text: money(a.currency, a.source[p]), Tone: tone},
 			{Text: money(target, a.converted[p]), Tone: tone},
 		})
@@ -226,6 +247,7 @@ func singleTable(a offer, target string) *Table {
 	return &Table{
 		Caption: "Same money, five periods",
 		Columns: []string{"Period", a.currency, target},
+		Numeric: []bool{false, true, true},
 		Rows:    rows,
 	}
 }
@@ -249,6 +271,7 @@ func compareTable(a, b offer, target string) *Table {
 	return &Table{
 		Caption: fmt.Sprintf("Both offers in %s", target),
 		Columns: []string{"Period", "Offer A", "Offer B"},
+		Numeric: []bool{false, true, true},
 		Rows:    rows,
 	}
 }

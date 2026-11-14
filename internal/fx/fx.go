@@ -26,6 +26,16 @@ type Table struct {
 	Date   string             `json:"date"`
 	Source string             `json:"source"`
 	Rates  map[string]float64 `json:"rates"`
+	// Derived maps a currency to the note explaining how it was computed from a
+	// pegged currency (the ECB does not publish every currency a recruiter needs).
+	Derived map[string]string `json:"derived,omitempty"`
+}
+
+// IsDerived reports whether a currency was computed rather than quoted, with the
+// explanation to show the reader.
+func (t *Table) IsDerived(cur string) (string, bool) {
+	note, ok := t.Derived[cur]
+	return note, ok
 }
 
 // Embedded parses the rates compiled into the binary.
@@ -56,6 +66,14 @@ func Parse(b []byte) (*Table, error) {
 		}
 		if r <= 0 {
 			return nil, fmt.Errorf("fx: non-positive rate for %s", cur)
+		}
+	}
+	for cur, note := range t.Derived {
+		if _, ok := t.Rates[cur]; !ok {
+			return nil, fmt.Errorf("fx: derived currency %q has no rate", cur)
+		}
+		if note == "" {
+			return nil, fmt.Errorf("fx: derived currency %q has no explanation", cur)
 		}
 	}
 	return &t, nil

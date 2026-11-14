@@ -3,6 +3,7 @@
   "date": "2026-11-13",
   "source": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
   "rates": {
+    "AED": 4.058847,
     "AUD": 1.6288,
     "BRL": 6.2595,
     "CAD": 1.5758,
@@ -33,5 +34,8 @@
     "TRY": 55.6667,
     "USD": 1.1052,
     "ZAR": 18.7481
+  },
+  "derived": {
+    "AED": "AED: derived from its fixed peg to the USD at 3.6725 (not an ECB quote)"
   }
 }

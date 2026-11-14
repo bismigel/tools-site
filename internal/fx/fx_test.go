@@ -2,6 +2,7 @@ package fx
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -59,6 +60,41 @@ func TestParseRejectsBadFiles(t *testing.T) {
 	for name, body := range cases {
 		if _, err := Parse([]byte(body)); err == nil {
 			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestDerivedCurrency(t *testing.T) {
+	tbl, err := Parse([]byte(`{
+      "base": "EUR", "date": "2026-11-13", "source": "test",
+      "rates": {"EUR": 1.0, "USD": 1.1052, "AED": 4.058847},
+      "derived": {"AED": "AED: fixed peg to USD at 3.6725"}
+    }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, ok := tbl.IsDerived("AED")
+	if !ok || !strings.Contains(note, "peg") {
+		t.Fatalf("IsDerived(AED) = %q, %v", note, ok)
+	}
+	if _, ok := tbl.IsDerived("USD"); ok {
+		t.Error("USD should not be derived")
+	}
+	got, err := tbl.Convert(1, "USD", "AED")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := got - 3.6725; diff > 1e-6 || diff < -1e-6 {
+		t.Fatalf("1 USD = %v AED, want 3.6725", got)
+	}
+
+	bad := []string{
+		`{"base":"EUR","date":"2026-11-13","rates":{"EUR":1,"USD":1.1},"derived":{"AED":"peg"}}`,
+		`{"base":"EUR","date":"2026-11-13","rates":{"EUR":1,"USD":1.1},"derived":{"USD":""}}`,
+	}
+	for _, body := range bad {
+		if _, err := Parse([]byte(body)); err == nil {
+			t.Errorf("expected an error for %s", body)
 		}
 	}
 }

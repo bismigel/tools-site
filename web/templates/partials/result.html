@@ -11,12 +11,12 @@
 
 {{with .Result.Table}}
 <div class="result-table-wrap">
-<table class="result-table">
+<table class="result-table{{if .HasNumeric}} result-table--numbers{{end}}">
   {{if .Caption}}<caption>{{.Caption}}</caption>{{end}}
-  <thead><tr>{{range .Columns}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+  <thead><tr>{{range .Columns}}<th scope="col"{{if .Num}} class="num"{{end}}>{{.Name}}</th>{{end}}</tr></thead>
   <tbody>
   {{range .Rows}}
-    <tr>{{range .}}<td class="tone-{{.Tone}}"{{if .Note}} title="{{.Note}}"{{end}}>{{.Text}}{{if .Note}} <span class="cell-note">{{.Note}}</span>{{end}}</td>{{end}}</tr>
+    <tr>{{range .}}<td class="tone-{{.Tone}}{{if .Num}} num{{end}}"{{if .Note}} title="{{.Note}}"{{end}}>{{.Text}}{{if .Note}} <span class="cell-note">{{.Note}}</span>{{end}}</td>{{end}}</tr>
   {{end}}
   </tbody>
 </table>

@@ -400,9 +400,9 @@ recover → request-id → access log → security headers → body limit (64 Ki
 | Input           | Kind   | Required | Rules | Default |
 |-----------------+--------+----------+-------+---------|
 | ~amount~        | Number | yes      | 0.01 – 10,000,000 | — |
-| ~currency~      | Select | yes      | ECB-supported currency | GBP |
+| ~currency~      | Select | yes      | ECB-supported currency (AED derived from its USD peg) | AED |
 | ~period~        | Select | yes      | hour, day, week, month, year | day |
-| ~target~        | Select | yes      | ECB-supported currency | GBP |
+| ~target~        | Select | yes      | ECB-supported currency | AED |
 | ~amount2~       | Number | no       | 0.01 – 10,000,000; empty means "no comparison" | — |
 | ~currency2~     | Select | no       | ECB-supported currency | GBP |
 | ~period2~       | Select | no       | hour, day, week, month, year | day |
@@ -466,14 +466,14 @@ sentence a recruiter would say out loud.
 
 | Input        | Kind   | Required | Rules | Default |
 |--------------+--------+----------+-------+---------|
-| ~city1~      | Text   | no       | the anchor; datalist suggestions, any IANA zone | London |
-| ~city2~      | Text   | no       | datalist suggestions, any IANA zone | New York |
+| ~city1~      | Text   | no       | the anchor; datalist suggestions, any IANA zone | Dubai |
+| ~city2~      | Text   | no       | datalist suggestions, any IANA zone | Manila |
 | ~city3~–~city6~ | Text | no     | optional; at most 6 cities in total | — |
 | ~date~       | Text   | no       | ISO date, today ± 366 days; blank = today | today |
 | ~work_start~ | Text   | no       | HH:MM, interpreted in *each city's* local time | 09:00 |
 | ~work_end~   | Text   | no       | HH:MM, after ~work_start~ | 17:00 |
 | ~length~     | Select | no       | 30, 45, 60 minutes | 60 |
-| ~format~     | Select | no       | ~24~ or ~12~-hour clock | 24 |
+| ~format~     | Select | no       | ~12~ (AM/PM) or ~24~-hour clock | 12 |
 
 *Algorithm*
 

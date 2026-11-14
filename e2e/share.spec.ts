@@ -30,6 +30,7 @@ test.describe("shareable results", () => {
     await expect(page.locator("form")).toHaveAttribute("method", "get");
 
     await page.getByLabel("Amount", { exact: true }).fill("550");
+    await page.getByLabel("Currency", { exact: true }).selectOption("GBP");
     await page.getByRole("button", { name: "Run" }).click();
 
     await expect(page.locator("#result")).toContainText("£126,500.00");
@@ -50,6 +51,7 @@ test.describe("shareable results", () => {
 
     await page.goto("/t/rate_converter");
     await page.getByLabel("Amount", { exact: true }).fill("300");
+    await page.getByLabel("Currency", { exact: true }).selectOption("GBP");
     await page.getByRole("button", { name: "Run" }).click();
     await expect(page.locator("#result")).toContainText("£69,000.00");
 

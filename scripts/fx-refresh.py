@@ -14,6 +14,12 @@ import xml.etree.ElementTree as ET
 
 SOURCE = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 OUT = "internal/fx/rates.json"
+
+# Currencies the ECB does not publish, computed from a documented peg. The note
+# is shown to the reader, so a derived number is never mistaken for a quote.
+PEGS = {
+    "AED": ("USD", 3.6725, "AED: derived from its fixed peg to the USD at 3.6725 (not an ECB quote)"),
+}
 NS = {"e": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
 
 
@@ -42,12 +48,20 @@ def main() -> int:
         print("fx-refresh: suspiciously few currencies, refusing to write", file=sys.stderr)
         return 1
 
+    derived = {}
+    for code, (base, factor, note) in PEGS.items():
+        if base in rates:
+            rates[code] = rates[base] * factor
+            derived[code] = note
+
     body = {
         "base": "EUR",
         "date": date,
         "source": SOURCE,
         "rates": dict(sorted(rates.items())),
     }
+    if derived:
+        body["derived"] = dict(sorted(derived.items()))
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(body, f, indent=2)
         f.write("\n")

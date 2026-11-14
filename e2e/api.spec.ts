@@ -83,7 +83,7 @@ test.describe("accessibility basics", () => {
   test("every control has an accessible name and the first field takes focus", async ({ page }) => {
     await page.goto("/t/rate_converter");
 
-    for (const label of ["Amount", "Currency", "Quoted per", "Show in"]) {
+    for (const label of ["Amount", "Currency", "Quoted per", "Convert to"]) {
       await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }
 

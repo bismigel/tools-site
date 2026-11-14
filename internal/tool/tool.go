@@ -73,6 +73,7 @@ type Input struct {
 	Options     []string // Select only
 	Suggestions []string // optional <datalist>; never affects validation (FR-1.11)
 	Default     string   //
+	Group       string   // optional fieldset legend; consecutive inputs share one
 }
 
 // Values is the untrusted, stringly-typed input after form/JSON decoding and
@@ -149,6 +150,9 @@ type Table struct {
 	Caption string
 	Columns []string
 	Rows    [][]Cell
+	// Numeric marks columns to right-align with tabular figures (money, counts).
+	// Same length as Columns, or nil for none.
+	Numeric []bool
 }
 
 // File is an optional download attached to a result.

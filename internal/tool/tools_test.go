@@ -13,7 +13,8 @@ const testRates = `{
   "base": "EUR",
   "date": "2026-11-13",
   "source": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
-  "rates": {"EUR": 1.0, "GBP": 0.83559, "USD": 1.1052}
+  "rates": {"EUR": 1.0, "GBP": 0.83559, "USD": 1.1052, "AED": 4.058847},
+  "derived": {"AED": "AED: fixed peg to USD at 3.6725"}
 }`
 
 func testRateTool(t *testing.T) Tool {
@@ -141,6 +142,29 @@ func TestRateConverterContract(t *testing.T) {
 	})
 }
 
+func TestRateConverterDerivedCurrency(t *testing.T) {
+	// AED is not an ECB quote; it is derived from the USD peg.
+	tbl, err := fx.Parse([]byte(`{
+      "base": "EUR", "date": "2026-11-13", "source": "test",
+      "rates": {"EUR": 1.0, "USD": 1.1052, "AED": 4.058847},
+      "derived": {"AED": "AED: derived from its fixed peg to the USD at 3.6725"}
+    }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := NewRateConverter(tbl)
+
+	res := runRate(t, tool, Values{
+		"amount": "1", "currency": "USD", "period": "hour", "target": "AED", "basis": "contractor",
+	})
+	if got := res.Table.Rows[0][2].Text; got != "AED 3.67" {
+		t.Errorf("1 USD = %q, want AED 3.67", got)
+	}
+	if !strings.Contains(strings.Join(res.Warnings, " "), "fixed peg") {
+		t.Errorf("derived currency not explained: %v", res.Warnings)
+	}
+}
+
 func TestRateMoneyFormatting(t *testing.T) {
 	cases := []struct {
 		cur  string
@@ -183,6 +207,7 @@ func TestMeetingPlannerOverlap(t *testing.T) {
 	in := cities("London", "New York")
 	in["date"] = "2026-11-16"
 	in["length"] = "60"
+	in["format"] = "24"
 
 	res, err := planner(t, in)
 	if err != nil {

@@ -4,8 +4,9 @@ test.describe("rate_converter", () => {
   test("normalises £550/day to five periods and to EUR", async ({ page }) => {
     await page.goto("/t/rate_converter");
     await page.getByLabel("Amount", { exact: true }).fill("550");
+    await page.getByLabel("Currency", { exact: true }).selectOption("GBP");
     await page.getByLabel("Quoted per", { exact: true }).selectOption("day");
-    await page.getByLabel("Show in", { exact: true }).selectOption("EUR");
+    await page.getByLabel("Convert to", { exact: true }).selectOption("EUR");
     await page.getByRole("button", { name: "Run" }).click();
 
     const table = page.locator("#result table");
@@ -42,8 +43,8 @@ test.describe("meeting_planner", () => {
     await page.goto("/t/meeting_planner?city1=London&city2=New%20York&date=2026-11-16&length=60");
 
     await expect(page.locator("#result")).toContainText("3 hours overlap");
-    await expect(page.locator("#result")).toContainText("14:00–17:00 London");
-    await expect(page.locator("#result")).toContainText("09:00–12:00 New York");
+    await expect(page.locator("#result")).toContainText("2:00 PM–5:00 PM London");
+    await expect(page.locator("#result")).toContainText("9:00 AM–12:00 PM New York");
     await expect(page.locator("#result table tbody tr")).toHaveCount(24);
   });
 

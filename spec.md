@@ -100,6 +100,11 @@ a design change, not a feature.
   needs a *runtime* fetch, FR-1.9 applies and it is `Gated`.
 - **FR-1.11** `Input` MAY carry `Suggestions []string`, rendered as an HTML `<datalist>` on text
   inputs. Suggestions are convenience only and MUST NOT affect validation.
+- **FR-1.12** `Input` MAY carry `Group string`; consecutive inputs sharing a group render inside one
+  `<fieldset>` with a `<legend>`. Grouping is presentation only: it never changes validation, the
+  manifest or the MCP schema. It exists so an eleven-field form reads as sections, with no JavaScript.
+- **FR-1.13** `Table` MAY carry `Numeric []bool` (one per column) to right-align money and counts with
+  tabular figures. It is presentation only.
 
 ### FR-2 — Pages (HTML surfaces)
 
@@ -527,7 +532,7 @@ Copy this block into the tool's source file as a doc comment and into its PR des
 | --- | --- | --- | --- |
 | Q10 | Provider confirmation. | M9 | **Resolved 2026-11-14: reuse the in-cluster Hermes gateway**, key `hermes-api-key`; the upstream model is Hermes's configuration. `hire` keeps a model name in config because the OpenAI API requires the field, and swaps base URL without a code change. |
 | Q14 | Blog menu link. | M4 | Optional, last, separate one-line PR in `ciceleywebsite`. |
-| Q15 | Where do non-EUR currencies the ECB does not publish (e.g. NGN, PKR) come from? | M6 | Ship the ECB set first and show an honest "not supported" for the rest; add a second source only when a real need appears, with its own ADR. |
+| Q15 | Where do non-EUR currencies the ECB does not publish come from? | M6 | **Resolved for AED:** it is derived from its fixed USD peg (3.6725) at build time and labelled "derived" on the page (ADR-0009). Other non-ECB currencies stay unsupported and say so. |
 
 See `docs/spec/hire-assistant.md` for the assistant's own requirements and open questions.
 

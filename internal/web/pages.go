@@ -23,13 +23,13 @@ type page struct {
 	Year        int
 	Dev         bool
 
-	Tools    []tool.Tool
-	Tool     *tool.Tool
-	Controls []Control
-	Result   *resultView
-	Invalid  bool
-	FormErr  string
-	CSRF     string
+	Tools   []tool.Tool
+	Tool    *tool.Tool
+	Groups  []ControlGroup
+	Result  *resultView
+	Invalid bool
+	FormErr string
+	CSRF    string
 	// Get is true when the form submits with GET, so the URL holds the answer.
 	Get bool
 }
@@ -44,12 +44,19 @@ type cellView struct {
 	Text string
 	Tone string
 	Note string
+	Num  bool
+}
+
+type columnView struct {
+	Name string
+	Num  bool
 }
 
 type tableView struct {
-	Caption string
-	Columns []string
-	Rows    [][]cellView
+	Caption    string
+	Columns    []columnView
+	Rows       [][]cellView
+	HasNumeric bool
 }
 
 type resultView struct {
@@ -65,11 +72,19 @@ func viewResult(res tool.Result) *resultView {
 		v.Lines = append(v.Lines, lineView{Kind: l.Kind.String(), Key: l.Key, Value: l.Value})
 	}
 	if res.Table != nil {
-		t := &tableView{Caption: res.Table.Caption, Columns: res.Table.Columns}
+		numeric := func(i int) bool {
+			return i < len(res.Table.Numeric) && res.Table.Numeric[i]
+		}
+		t := &tableView{Caption: res.Table.Caption, HasNumeric: len(res.Table.Numeric) > 0}
+		for i, name := range res.Table.Columns {
+			t.Columns = append(t.Columns, columnView{Name: name, Num: numeric(i)})
+		}
 		for _, row := range res.Table.Rows {
 			cells := make([]cellView, 0, len(row))
-			for _, c := range row {
-				cells = append(cells, cellView{Text: c.Text, Tone: c.Tone.String(), Note: c.Note})
+			for i, c := range row {
+				cells = append(cells, cellView{
+					Text: c.Text, Tone: c.Tone.String(), Note: c.Note, Num: numeric(i),
+				})
 			}
 			t.Rows = append(t.Rows, cells)
 		}
@@ -127,7 +142,7 @@ func (s *Server) toolPageFor(v tool.Visibility) http.HandlerFunc {
 			return
 		}
 
-		p.Controls = Controls(t, Defaults(t), nil)
+		p.Groups = Groups(t, Defaults(t), nil)
 		if v == tool.Gated && s.cfg.Access != nil {
 			p.CSRF = s.cfg.Access.CSRFFor(r)
 		}
@@ -187,11 +202,11 @@ func (s *Server) execute(w http.ResponseWriter, r *http.Request, t tool.Tool, ra
 	}
 
 	if p.Invalid {
-		p.Controls = Controls(t, raw, errs)
+		p.Groups = Groups(t, raw, errs)
 		s.respondForm(w, r, p)
 		return
 	}
-	p.Controls = Controls(t, clean, nil)
+	p.Groups = Groups(t, clean, nil)
 
 	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.Timeout)
 	defer cancel()

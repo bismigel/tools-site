@@ -7,36 +7,42 @@
         hx-target="#result" hx-swap="innerHTML show:top"
         hx-indicator="#busy"{{if .CSRF}} hx-headers='{"X-Tools-CSRF":"{{.CSRF}}"}'{{end}}{{if .Invalid}} data-invalid="true"{{end}}>
     {{if .CSRF}}<input type="hidden" name="_csrf" value="{{.CSRF}}">{{end}}
-    {{range .Controls}}
-    <div class="form-row{{if .HasErr}} has-error{{end}}{{if .Required}} is-required{{end}}">
-      <label for="f-{{.Name}}">{{.Label}}</label>
 
-      {{if eq .Type "textarea"}}
-      <textarea id="f-{{.Name}}" name="{{.Name}}" rows="6"
-        {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>{{.Value}}</textarea>
+    {{range .Groups}}
+    <fieldset class="form-group">
+      {{if .Legend}}<legend>{{.Legend}}</legend>{{end}}
+      {{range .Controls}}
+      <div class="form-row{{if .HasErr}} has-error{{end}}{{if .Required}} is-required{{end}}">
+        <label for="f-{{.Name}}">{{.Label}}</label>
 
-      {{else if eq .Type "select"}}
-      <select id="f-{{.Name}}" name="{{.Name}}"
-        {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
-        {{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
-      </select>
+        {{if eq .Type "textarea"}}
+        <textarea id="f-{{.Name}}" name="{{.Name}}" rows="6"
+          {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>{{.Value}}</textarea>
 
-      {{else if eq .Type "checkbox"}}
-      <input id="f-{{.Name}}" type="checkbox" name="{{.Name}}" value="on"{{if eqs .Value "true"}} checked{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
+        {{else if eq .Type "select"}}
+        <select id="f-{{.Name}}" name="{{.Name}}"
+          {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
+          {{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
 
-      {{else if eq .Type "number"}}
-      <input id="f-{{.Name}}" type="number" name="{{.Name}}" value="{{.Value}}" step="any"
-        {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
+        {{else if eq .Type "checkbox"}}
+        <input id="f-{{.Name}}" type="checkbox" name="{{.Name}}" value="on"{{if eqs .Value "true"}} checked{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
 
-      {{else}}
-      <input id="f-{{.Name}}" type="text" name="{{.Name}}" value="{{.Value}}"
-        {{if .HasDatalist}}list="dl-{{.Name}}"{{end}}{{if .Required}} required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
-      {{if .HasDatalist}}<datalist id="dl-{{.Name}}">{{range .Suggestions}}<option value="{{.}}"></option>{{end}}</datalist>{{end}}
+        {{else if eq .Type "number"}}
+        <input id="f-{{.Name}}" type="number" name="{{.Name}}" value="{{.Value}}" step="any" inputmode="decimal"
+          {{if .Required}}required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
+
+        {{else}}
+        <input id="f-{{.Name}}" type="text" name="{{.Name}}" value="{{.Value}}"
+          {{if .HasDatalist}}list="dl-{{.Name}}"{{end}}{{if .Required}} required{{end}}{{if .HasErr}} aria-describedby="e-{{.Name}}" aria-invalid="true"{{end}}>
+        {{if .HasDatalist}}<datalist id="dl-{{.Name}}">{{range .Suggestions}}<option value="{{.}}"></option>{{end}}</datalist>{{end}}
+        {{end}}
+
+        {{if .Help}}<p class="form-help">{{.Help}}</p>{{end}}
+        {{if .HasErr}}<p class="form-error" id="e-{{.Name}}">{{.Err}}</p>{{end}}
+      </div>
       {{end}}
-
-      {{if .Help}}<p class="form-help">{{.Help}}</p>{{end}}
-      {{if .HasErr}}<p class="form-error" id="e-{{.Name}}">{{.Err}}</p>{{end}}
-    </div>
+    </fieldset>
     {{end}}
 
     <div class="form-actions">
