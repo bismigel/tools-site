@@ -821,14 +821,6 @@ local run means a green PR apart from Docker and network differences. One source
 Steps: checkout (submodules) → setup-go from ~go.mod~ → setup-node 24 → install pinned
 ~sass@1.107.1~ and ~govulncheck@v1.1.4~ (same versions as ~flake.nix~) → ~make ci~ → ~make image~.
 The ~deploy/k8s~ render and ~kubeconform~ step is added at M3.
-1. checkout (submodules recursive — the theme is needed for the CSS drift check);
-2. ~make css && git diff --exit-code theme/tools.css~;
-3. ~go vet ./...~;
-4. ~go test -race ./...~;
-5. ~go build ./...~;
-6. ~govulncheck ./...~;
-7. ~docker build~ the image;
-8. ~kustomize build deploy/k8s | kubeconform -strict -ignore-missing-schemas~.
 
 ** 10.2 ~release.yml~ (push to ~main~)
 
