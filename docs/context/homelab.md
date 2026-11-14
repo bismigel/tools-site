@@ -63,7 +63,9 @@ credential/deploy key, which is a manual step.
 - One tunnel, **remote-managed** (its ingress list is edited in the dashboard or via the API —
   procedures and IDs are in `homelab-context/CREDENTIALS.md`).
 - Every public hostname is a **proxied CNAME** to the tunnel; the tunnel routes to
-  `http://127.0.0.1:32080`, which is ingress-nginx's NodePort. NodePorts are loopback-only, so the
+  the ingress Service's cluster address (`http://10.43.46.55:80` for the public controller,
+  `http://10.43.15.7:80` for `ingress-nginx-admin`) — **not** `127.0.0.1:32080`; every existing
+  hostname uses the Service IPs, measured 2026-11-14. NodePorts are loopback-only, so the
   tunnel is the only path in.
 - **TLS terminates at Cloudflare.** No `tls:` block, no cert-manager object — matching `ciceley.cc`.
 - Order matters: **Ingress first, then tunnel hostname, then DNS.** Reversed, you get a Cloudflare

@@ -119,7 +119,8 @@ No `tls:` block. TLS ends at Cloudflare, same as `ciceley.cc`.
 
 1. **Ingress live** (`kubectl get ingress -n apps tools-site` has an address; a port-forward returns
    200).
-2. **Tunnel hostname**: add `tools.ciceley.cc` → `http://127.0.0.1:32080` to the remote-managed
+2. **Tunnel hostname**: add `tools.ciceley.cc` → `http://10.43.46.55:80` (the public ingress Service,
+   as every other public host does; `127.0.0.1:32080` was the old tunnel's target) to the remote-managed
    tunnel config. Procedure/IDs: `~/projects/homelab-context/CREDENTIALS.md` (do not copy values
    into this repo).
 3. **DNS**: proxied `CNAME tools` → `<tunnel-id>.cfargotunnel.com` in zone `ciceley.cc`.

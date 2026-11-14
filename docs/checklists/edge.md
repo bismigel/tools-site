@@ -71,7 +71,8 @@ If the pre-flight fails, **stop**. Cloudflare will only add a confusing error pa
 
 ## 3. Tunnel hostname
 
-- [ ] remote-managed tunnel config gains `tools.ciceley.cc` → `http://127.0.0.1:32080`
+- [x] remote-managed tunnel config gains `tools.ciceley.cc` → `http://10.43.46.55:80` (done 2026-11-14;
+      the tunnel points at ingress Service addresses, not `127.0.0.1:32080`)
 - [ ] other hostnames still work (`curl -sSI https://ciceley.cc/`, `https://bismigel.dev/`)
 - [ ] `curl -sSI https://tools.ciceley.cc/` → 502 is expected *and correct* until DNS exists; the
       tunnel is not reachable by name yet

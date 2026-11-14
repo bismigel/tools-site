@@ -63,7 +63,7 @@ applicable yet, write why instead of deleting the line.
 ## 5. M4 — edge
 
 - [ ] Ingress has an address; in-cluster probe is 200 (before touching Cloudflare)
-- [ ] tunnel hostname `tools.ciceley.cc` → `http://127.0.0.1:32080`
+- [x] tunnel hostname `tools.ciceley.cc` → `http://10.43.46.55:80` (public ingress Service; done 2026-11-14)
 - [ ] proxied CNAME `tools` → `<tunnel>.cfargotunnel.com`
 - [ ] `curl -sSI https://tools.ciceley.cc/` → 200, `cf-ray` present, HSTS at the edge
 - [ ] `bakuran-gitops`: host added to `ingress-host-check`'s public list, CronJob ran clean
