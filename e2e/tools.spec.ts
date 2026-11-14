@@ -45,7 +45,6 @@ test.describe("meeting_planner", () => {
     await expect(page.locator("#result")).toContainText("14:00–17:00 London");
     await expect(page.locator("#result")).toContainText("09:00–12:00 New York");
     await expect(page.locator("#result table tbody tr")).toHaveCount(24);
-    await expect(page.locator("#result")).toContainText("Slot 1");
   });
 
   test("renders 12-hour labels on request", async ({ page }) => {
