@@ -132,7 +132,7 @@ func newGatedFixture(t *testing.T) *gatedFixture {
 			t.Fatal(err)
 		}
 	}
-	must(reg.Register(tool.NewSlugify()))
+	must(reg.Register(textTool()))
 	must(reg.Register(tool.Tool{
 		Name:       "secret_tool",
 		Summary:    "A gated tool",

@@ -10,17 +10,6 @@ import (
 // NFR-1.1: a pure tool's p95 handler latency must stay under 20 ms. These
 // benchmarks are the evidence, run with `make bench`.
 
-func BenchmarkSlugify(b *testing.B) {
-	t := NewSlugify()
-	in := Values{"text": "Crème Brûlée — Writing With a Full Stomach!"}
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		if _, err := t.Run(context.Background(), in); err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func BenchmarkRateConverter(b *testing.B) {
 	tbl, err := fx.Embedded()
 	if err != nil {

@@ -8,37 +8,40 @@ test.describe("JSON API", () => {
 
     const body = await res.json();
     expect(body.tools.map((t: { name: string }) => t.name)).toEqual([
-      "slugify",
       "rate_converter",
       "meeting_planner",
     ]);
 
-    const slugify = body.tools[0];
-    expect(slugify.inputSchema.type).toBe("object");
-    expect(slugify.inputSchema.required).toContain("text");
+    const first = body.tools[0];
+    expect(first.inputSchema.type).toBe("object");
+    expect(first.inputSchema.required).toContain("amount");
   });
 
   test("executes a tool and returns a request id", async ({ request }) => {
-    const res = await request.post("/api/tools/slugify", { data: { text: "Hello, World!" } });
+    const res = await request.post("/api/tools/rate_converter", {
+      data: { amount: "550", currency: "GBP", period: "day", target: "EUR" },
+    });
     expect(res.status()).toBe(200);
 
     const body = await res.json();
-    expect(body.data.slug).toBe("hello-world");
+    expect(body.data.offers.a.values.year.target).toBe(151390.04);
     expect(body.request_id).toBeTruthy();
   });
 
   test("bad input is a 400 envelope", async ({ request }) => {
-    const res = await request.post("/api/tools/slugify", { data: { text: "" } });
+    const res = await request.post("/api/tools/rate_converter", {
+      data: { amount: "0", currency: "GBP", period: "day", target: "GBP" },
+    });
     expect(res.status()).toBe(400);
 
     const body = await res.json();
     expect(body.error.code).toBe("bad_input");
-    expect(body.error.message).toMatch(/required/i);
+    expect(body.error.message).toMatch(/zero/i);
     expect(body.error.request_id).toBeTruthy();
   });
 
   test("an unknown field is rejected", async ({ request }) => {
-    const res = await request.post("/api/tools/slugify", { data: { nope: "x" } });
+    const res = await request.post("/api/tools/rate_converter", { data: { nope: "x" } });
     expect(res.status()).toBe(400);
     expect((await res.json()).error.message).toContain("nope");
   });
@@ -57,7 +60,7 @@ test.describe("JSON API", () => {
 test.describe("responsive", () => {
   test("no page-level horizontal scroll at 360px", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });
-    for (const path of ["/", "/t/slugify", "/t/rate_converter", "/t/meeting_planner"]) {
+    for (const path of ["/", "/t/rate_converter", "/t/meeting_planner"]) {
       await page.goto(path);
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - window.innerWidth

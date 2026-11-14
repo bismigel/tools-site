@@ -107,7 +107,6 @@ tools-site/
 │   ├── tool.go                   Tool, Input, Values, Registry, Visibility, Result, Table
 │   ├── validate.go               Values → typed getters enforcing Input rules
 │   ├── form.go                   Inputs → control view model (no markup)
-│   ├── slugify.go                M1
 │   ├── rate_converter.go         M6 (embedded ECB rates)
 │   └── meeting_planner.go        M6 (embedded tzdata)
 ├── internal/fx/
@@ -370,7 +369,11 @@ recover → request-id → access log → security headers → body limit (64 Ki
 :PROPERTIES:
 :CUSTOM_ID: tools
 :END:
-** 5.1 slugify (public, M1)
+** 5.1 slugify (retired 2026-11-14)
+
+Kept here as history: it was M1's plumbing proof, and its POST + textarea shape now
+exists only as a test-only tool in ~internal/web/web_test.go~. Production registers
+~rate_converter~ and ~meeting_planner~.
 
 - *Input:* ~text~ — Textarea, required, 1–5,000 runes.
 - *Algorithm:*
@@ -585,7 +588,8 @@ integration, no scheduling.
 
 // POST /mcp — tools/call
 { "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-  "params": { "name": "slugify", "arguments": { "text": "Hello, World!" } } }
+  "params": { "name": "rate_converter",
+              "arguments": { "amount": "550", "currency": "GBP", "period": "day", "target": "EUR" } } }
 #+END_SRC
 
 - ~tools/list~ advertises public tools to anonymous callers; gated tools only with a valid Access JWT
@@ -1041,7 +1045,7 @@ watchexec -r -e go -- go run ./cmd/toolsd -dev -addr=:8080
    assertion that the manifest and the page agree.
 3. Execute a tool from the assistant and compare with the HTML form result; they must be textually
    identical (FR-5.5), because both come from ~Result~.
-4. In the console, ~window.__tools.call('slugify', {text: 'Hello, World!'})~ uses the same endpoint as
+4. In the console, ~window.__tools.call('rate_converter', {amount: '550', currency: 'GBP', period: 'day', target: 'EUR'})~ uses the same endpoint as
    the shim, so a failure tells you whether the problem is the tool or the browser bridge.
 
 Caveats, stated so nobody plans around them: WebMCP support is experimental and flag/origin-trial
@@ -1052,7 +1056,7 @@ may be absent. None of this runs in CI.
 
 #+BEGIN_SRC bash
 make list                                  # GET /api/tools | jq
-make call TOOL=slugify TEXT='Hello, World!' # POST /api/tools/slugify, prints the JSON Result
+make call TOOL=rate_converter            # POST /api/tools/rate_converter, prints the JSON Result
 curl -sS localhost:8080/api/tools | jq     # the manual version of the above
 #+END_SRC
 

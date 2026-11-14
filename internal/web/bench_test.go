@@ -27,7 +27,7 @@ func benchServer(b *testing.B) *Server {
 		b.Fatal(err)
 	}
 	reg := tool.NewRegistry()
-	for _, t := range []tool.Tool{tool.NewSlugify(), tool.NewRateConverter(rates), tool.NewMeetingPlanner()} {
+	for _, t := range []tool.Tool{textTool(), tool.NewRateConverter(rates), tool.NewMeetingPlanner()} {
 		if err := reg.Register(t); err != nil {
 			b.Fatal(err)
 		}

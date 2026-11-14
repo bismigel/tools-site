@@ -32,14 +32,14 @@ test.describe("MCP", () => {
         jsonrpc: "2.0",
         id: 3,
         method: "tools/call",
-        params: { name: "slugify", arguments: { text: "Hello, World!" } },
+        params: { name: "rate_converter", arguments: { amount: "550", currency: "GBP", period: "day", target: "EUR" } },
       },
     });
     expect(res.status()).toBe(200);
 
     const body = await res.json();
-    expect(body.result.content[0].text).toBe("hello-world");
-    expect(body.result.structuredContent.data.slug).toBe("hello-world");
+    expect(body.result.content[0].text).toContain("€151,390.04");
+    expect(body.result.structuredContent.data.offers.a.values.year.target).toBe(151390.04);
     expect(body.result.isError).toBe(false);
   });
 
@@ -49,13 +49,13 @@ test.describe("MCP", () => {
         jsonrpc: "2.0",
         id: 4,
         method: "tools/call",
-        params: { name: "slugify", arguments: { text: "" } },
+        params: { name: "rate_converter", arguments: { amount: "0", currency: "GBP", period: "day", target: "GBP" } },
       },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text.toLowerCase()).toContain("required");
+    expect(body.result.content[0].text.toLowerCase()).toContain("zero");
   });
 
   test("an unknown tool is a JSON-RPC error", async ({ request }) => {
@@ -73,7 +73,7 @@ test.describe("MCP", () => {
 test.describe("metrics", () => {
   test("exposes request and tool counters in Prometheus text", async ({ request }) => {
     await request.get("/");
-    await request.post("/api/tools/slugify", { data: { text: "metrics" } });
+    await request.post("/api/tools/rate_converter", { data: { amount: "550", currency: "GBP", period: "day", target: "GBP" } });
 
     const res = await request.get("/metrics");
     expect(res.status()).toBe(200);
@@ -81,7 +81,7 @@ test.describe("metrics", () => {
 
     const body = await res.text();
     expect(body).toContain("# TYPE tools_http_requests_total counter");
-    expect(body).toContain(`tools_tool_runs_total{tool="slugify",outcome="ok"}`);
+    expect(body).toContain(`tools_tool_runs_total{tool="rate_converter",outcome="ok"}`);
     expect(body).toContain("tools_request_duration_seconds_count");
   });
 });

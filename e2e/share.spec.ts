@@ -37,11 +37,6 @@ test.describe("shareable results", () => {
     await expect.poll(() => new URL(page.url()).searchParams.get("amount")).toBe("550");
   });
 
-  test("the long-text tool stays a POST, because a slug request does not fit in a URL", async ({ page }) => {
-    await page.goto("/t/slugify");
-    await expect(page.locator("form")).toHaveAttribute("method", "post");
-  });
-
   test("every tool page still works with JavaScript disabled", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
@@ -78,26 +73,48 @@ test.describe("form layout", () => {
     expect(narrowCurrency!.y).toBeGreaterThan(narrowAmount!.y + 20);
   });
 
-  test("a textarea always takes the full row", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/t/slugify");
-    const box = await page.getByLabel("Text", { exact: true }).boundingBox();
-    expect(box!.width).toBeGreaterThan(600);
-  });
 });
 
 test.describe("htmx behaviour", () => {
-  test("the Run button cannot double-submit", async ({ page }) => {
-    await page.goto("/t/slugify");
-    await page.getByLabel("Text", { exact: true }).fill("double submit");
+  test("a submit swaps the fragment without navigating", async ({ page }) => {
+    await page.goto("/t/rate_converter");
+    await page.getByLabel("Amount", { exact: true }).fill("550");
+    await page.getByLabel("Currency", { exact: true }).selectOption("GBP");
+    await page.getByRole("button", { name: "Run" }).click();
+    await expect(page.locator("#result")).toContainText("per year");
 
-    const posts: string[] = [];
+    // Survives only if the document was not replaced by a navigation.
+    await page.evaluate(() => ((window as any).__marker = "kept"));
+    await page.getByLabel("Amount", { exact: true }).fill("300");
+    await page.getByRole("button", { name: "Run" }).click();
+    await expect(page.locator("#result")).toContainText("£69,000.00");
+    expect(await page.evaluate(() => (window as any).__marker)).toBe("kept");
+  });
+
+  test("an empty submit is stopped by the browser, not the server", async ({ page }) => {
+    await page.goto("/t/rate_converter");
+    const calls: string[] = [];
     page.on("request", (r) => {
-      if (r.method() === "POST" && r.url().includes("/t/slugify")) posts.push(r.url());
+      if (new URL(r.url()).pathname === "/t/rate_converter") calls.push(r.url());
+    });
+    await page.getByRole("button", { name: "Run" }).click();
+    await expect(page.getByLabel("Amount", { exact: true })).toBeFocused();
+    expect(calls).toEqual([]);
+  });
+
+  test("the Run button cannot double-submit", async ({ page }) => {
+    await page.goto("/t/rate_converter");
+    await page.getByLabel("Amount", { exact: true }).fill("550");
+    await page.getByLabel("Currency", { exact: true }).selectOption("GBP");
+
+    const calls: string[] = [];
+    page.on("request", (r) => {
+      // GET tools carry their input in the query string.
+      if (new URL(r.url()).pathname === "/t/rate_converter") calls.push(r.url());
     });
 
     await page.getByRole("button", { name: "Run" }).dblclick();
-    await expect(page.locator("#result")).toContainText("double-submit");
-    expect(posts.length).toBe(1);
+    await expect(page.locator("#result")).toContainText("per year");
+    expect(calls.length).toBe(1);
   });
 });

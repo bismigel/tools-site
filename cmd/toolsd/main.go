@@ -49,7 +49,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	register(tool.NewSlugify())
 	register(tool.NewRateConverter(rates))
 	register(tool.NewMeetingPlanner())
 

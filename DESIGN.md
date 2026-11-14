@@ -69,7 +69,14 @@ The first two are public and need no login. The last four are the assistant, and
 
 ## 3. The tools
 
-### 3.1 `slugify` — M1, the plumbing proof
+### 3.1 `slugify` — retired
+
+It was M1's plumbing proof: the cheapest tool that could show a page, a form, a JSON
+endpoint and a WebMCP entry all working, with no network, secret or data file. Once
+`rate_converter` and `meeting_planner` existed it was doing nothing for the reader,
+so it was removed from the site on 2026-11-14. The tool survives in the test suite as
+a test-only text tool, because the POST + textarea path still needs a long-text
+case — but production no longer ships a tool nobody asked for.
 
 Text in, URL slug out. It exists to prove the pipes with something that cannot fail, and it is
 specified with test vectors in `spec.md` §5 (including what it deliberately does *not* do).

@@ -344,15 +344,19 @@ into the PR body (`docs/plan.md` "done when" is the summary of these).
 
 ### A1 — M1: it runs, it is themed, it is scriptless-safe
 
+> Historical: M1's acceptance used `slugify`, which was retired once real tools existed. The
+> commands below are the record of that milestone, not a current expectation.
+
 ```bash
 nix develop && make css && grep -c -- --rose-500 theme/tools.css   # ≥ 1
 make check                                                        # exit 0
 make run & sleep 1
 curl -sS localhost:8080/healthz         # ok
 curl -sS localhost:8080/readyz          # ok
-curl -sS localhost:8080/api/tools | jq -r '.tools[].name'         # exactly: slugify
-curl -sS -X POST localhost:8080/api/tools/slugify -d '{"text":"Hello, World!"}'   # one slug
-curl -sS -X POST localhost:8080/t/slugify -d 'text=Hello'         # full page, result visible
+curl -sS localhost:8080/api/tools | jq -r '.tools[].name'         # rate_converter, meeting_planner
+curl -sS -X POST localhost:8080/api/tools/rate_converter \
+  -d '{"amount":"550","currency":"GBP","period":"day","target":"EUR"}'
+curl -sS 'localhost:8080/t/rate_converter?amount=550&currency=GBP&period=day&target=EUR'  # full page, result visible
 curl -sSI localhost:8080/nope                                     # 404 + themed body
 curl -sSI localhost:8080/lab                                      # 404 (FR-4.3, no AUD configured)
 ```
@@ -384,7 +388,7 @@ valid JWT, same-origin, token                                   # 200
 ```bash
 curl -sSI https://tools.ciceley.cc/api/tools | grep -i 'cache-control: no-store'
 # browser with WebMCP: getTools() == curl /api/tools | jq '.tools[].name'
-# execute("slugify", {text:"X"}) text == HTML form result text
+# execute("rate_converter", {amount:"550", …}) text == HTML form result text
 ```
 
 ### A5 — M7: the same tools over MCP
@@ -394,7 +398,7 @@ curl -sS -X POST localhost:8080/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 # exactly the public tools; identical names/schemas to /api/tools
 curl -sS -X POST localhost:8080/mcp -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"slugify","arguments":{"text":"Hi"}}}' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"rate_converter","arguments":{"amount":"550","currency":"GBP","period":"day","target":"EUR"}}}' \
   | jq -r '.result.content[0].text'                     # same text as the HTML form
 curl -sS -X POST localhost:8080/mcp ... '"name":"<gated>"'   # 401 without JWT
 # with CF-Access-Client-Id/Secret (service token)                  # 200
@@ -441,7 +445,7 @@ Copy this block into the tool's source file as a doc comment and into its PR des
 **Requirements:** FR-1.x, FR-4.x, NFR-x.y
 ```
 
-### Worked example — `slugify` (M1)
+### Worked example — `slugify` (retired; kept as the shape of a spec block)
 
 - **Visibility:** Public · **Outbound:** none · **State:** none
 - **Input:** `text` (Textarea, required, 1–5000 runes)

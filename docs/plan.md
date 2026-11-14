@@ -65,6 +65,7 @@ Status legend: **done** · **next** · **todo** · **blocked**
 | Observability split: basic at M3, complete at M8 | a paid model API with no spend/error visibility is a liability |
 | New M9/M10 for `hire` in a separate repo | ADR-0008 |
 | Redaction is **optional**, offered and warned about | client decision; the residual data-transfer responsibility is the owner's and is written down (DESIGN.md §5) |
+| `slugify` retired from production | it was M1's plumbing proof, not a tool the client asked for; the POST + textarea path is covered by a test-only tool, and the two real tools carry the site |
 | Profile enrichment added: paste-the-text merge with provenance | client request; the URL-fetch and vendor-API versions are rejected and recorded (ADR-0010) |
 | Private tools stay on `tools.ciceley.cc/lab` | one hostname = one set of edge failure modes (`spec.md` §7.1) |
 

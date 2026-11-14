@@ -6,9 +6,9 @@ test.describe("home", () => {
     await expect(page).toHaveTitle(/Tools/);
 
     const cards = page.locator(".article-list article");
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(2);
 
-    for (const name of ["slugify", "rate_converter", "meeting_planner"]) {
+    for (const name of ["rate_converter", "meeting_planner"]) {
       await expect(page.locator(`a[href="/t/${name}"]`)).toBeVisible();
     }
   });
@@ -34,7 +34,7 @@ test.describe("home", () => {
     page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));
 
     await page.goto("/");
-    await page.goto("/t/slugify");
+    await page.goto("/t/rate_converter");
     expect(problems).toEqual([]);
   });
 });
@@ -56,7 +56,7 @@ test.describe("page furniture", () => {
 
   test("the 404 page offers the tools instead of a dead end", async ({ page }) => {
     await page.goto("/nope");
-    for (const name of ["Slugify", "Rate converter", "Meeting planner"]) {
+    for (const name of ["Rate converter", "Meeting planner"]) {
       await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
     }
   });
@@ -68,7 +68,7 @@ test.describe("page furniture", () => {
   });
 
   test("the empty result card explains what will happen", async ({ page }) => {
-    await page.goto("/t/slugify");
+    await page.goto("/t/rate_converter");
     await expect(page.locator("#result")).toContainText("Fill this in");
   });
 });

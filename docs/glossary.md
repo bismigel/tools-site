@@ -90,7 +90,7 @@ source of truth for the form, the API, the manifest and MCP.
 serves a login wall, prohibits it in its terms, and doing it reliably needs a stored session and a
 headless browser (`docs/adr/0010-profile-enrichment-paste-only.md`).
 
-**Slugify** — turn free text into a URL-safe slug: `Writing With a Full Stomach!` →
+**Slugify** — *(retired from the site in 2026-11-14; kept in the tests)* turn free text into a URL-safe slug: `Writing With a Full Stomach!` →
 `writing-with-a-full-stomach`. Chosen as the first tool because it needs no network, no secret and
 no configuration — it proves the plumbing and nothing else.
 

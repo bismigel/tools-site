@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,36 @@ import (
 
 	"github.com/bismigel/tools-site/internal/tool"
 )
+
+// textTool is a test-only stand-in for the retired slugify tool: the POST +
+// textarea shape the form, handler and API tests exercise. Production registers
+// only the two real tools; the plumbing still needs a long-text case to test.
+func textTool() tool.Tool {
+	return tool.Tool{
+		Name:       "slugify",
+		Summary:    "Test-only text tool",
+		Visibility: tool.Public,
+		Inputs: []tool.Input{
+			{Name: "text", Label: "Text", Kind: tool.Textarea, Required: true, Max: 5000},
+		},
+		Run: func(_ context.Context, in tool.Values) (tool.Result, error) {
+			var b strings.Builder
+			for _, r := range strings.ToLower(in.Get("text")) {
+				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+					b.WriteRune(r)
+				} else {
+					b.WriteByte('-')
+				}
+			}
+			out := strings.Trim(strings.ReplaceAll(strings.ReplaceAll(b.String(), "--", "-"), "--", "-"), "-")
+			if out == "" {
+				return tool.Result{}, fmt.Errorf("%w: nothing to slugify", tool.ErrBadInput)
+			}
+			return tool.Result{Title: "Slug", Lines: []tool.Line{{Kind: tool.LineCode, Value: out}},
+				JSON: map[string]string{"slug": out}}, nil
+		},
+	}
+}
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -31,7 +62,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			t.Fatal(err)
 		}
 	}
-	must(reg.Register(tool.NewSlugify()))
+	must(reg.Register(textTool()))
 	must(reg.Register(tool.Tool{
 		Name:       "boom",
 		Summary:    "Panics on purpose to test recovery",
@@ -430,7 +461,7 @@ func TestDevModeOnlySurface(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg := tool.NewRegistry()
-	if err := reg.Register(tool.NewSlugify()); err != nil {
+	if err := reg.Register(textTool()); err != nil {
 		t.Fatal(err)
 	}
 	srv, err := New(Config{
@@ -626,7 +657,7 @@ func TestDevStylesheetIsReadPerRequest(t *testing.T) {
 	}
 
 	reg := tool.NewRegistry()
-	if err := reg.Register(tool.NewSlugify()); err != nil {
+	if err := reg.Register(textTool()); err != nil {
 		t.Fatal(err)
 	}
 	srv, err := New(Config{
