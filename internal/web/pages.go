@@ -28,6 +28,7 @@ type page struct {
 	Result   *resultView
 	Invalid  bool
 	FormErr  string
+	CSRF     string
 }
 
 type lineView struct {
@@ -114,6 +115,9 @@ func (s *Server) toolPageFor(v tool.Visibility) http.HandlerFunc {
 		p.Description = t.Summary
 		p.Tool = &t
 		p.Controls = Controls(t, Defaults(t), nil)
+		if v == tool.Gated && s.cfg.Access != nil {
+			p.CSRF = s.cfg.Access.CSRFFor(r)
+		}
 		s.renderPage(w, r, "tool.html", p)
 	}
 }
@@ -142,6 +146,13 @@ func (s *Server) toolRunFor(v tool.Visibility) http.HandlerFunc {
 			return
 		}
 
+		if v == tool.Gated && s.cfg.Access != nil {
+			if !s.cfg.Access.CheckCSRF(r, r.PostForm.Get("_csrf")) {
+				http.Error(w, "Cross-site request refused.", http.StatusForbidden)
+				return
+			}
+		}
+
 		raw := make(tool.Values, len(t.Inputs))
 		for _, in := range t.Inputs {
 			raw[in.Name] = r.PostForm.Get(in.Name)
@@ -152,6 +163,9 @@ func (s *Server) toolRunFor(v tool.Visibility) http.HandlerFunc {
 		p.Title = t.Name
 		p.Tool = &t
 		p.Invalid = len(errs) > 0
+		if v == tool.Gated && s.cfg.Access != nil {
+			p.CSRF = s.cfg.Access.CSRFFor(r)
+		}
 
 		if p.Invalid {
 			p.Controls = Controls(t, raw, errs)

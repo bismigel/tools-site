@@ -94,6 +94,10 @@ func (s *Server) apiRunFor(v tool.Visibility) http.HandlerFunc {
 			writeJSONError(w, r, fmt.Errorf("%w: cross-origin", tool.ErrForbidden))
 			return
 		}
+		if v == tool.Gated && s.cfg.Access != nil && !s.cfg.Access.CheckCSRF(r, "") {
+			writeJSONError(w, r, fmt.Errorf("%w: missing CSRF token", tool.ErrForbidden))
+			return
+		}
 
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
 		var raw map[string]json.RawMessage

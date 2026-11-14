@@ -152,7 +152,9 @@ a design change, not a feature.
   `KUBERNETES_SERVICE_HOST` is set. It logs a warning on every request it lets through.
 - **FR-4.5** Every state-changing request (`POST`) requires a same-origin check
   (`Sec-Fetch-Site: same-origin`, else `Origin` equals the configured base URL). Gated `POST`s
-  additionally require the CSRF token; failures are `403` with a logged `request_id`.
+  additionally require the CSRF token; failures are `403` with a logged `request_id`. The token is
+  HMAC-SHA256 keyed by the raw Access JWT over a 10-minute bucket, so any replica can validate a form
+  rendered by any other, and a cross-site attacker cannot compute it (it cannot read the JWT).
 
 ### FR-5 — WebMCP
 

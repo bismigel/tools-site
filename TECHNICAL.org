@@ -617,8 +617,9 @@ cluster, and anything an actor with ~kubectl~ in ~apps~ can do.
 ** 7.3 CSRF (gated POSTs)
 
 - Require ~Sec-Fetch-Site: same-origin~, or (when absent) an ~Origin~ equal to the configured base URL.
-- Require ~X-Tools-CSRF: <token>~; token = HMAC(session id from the JWT ~sub~, per-process secret,
-  10-minute validity), issued into the page and echoed by htmx via ~hx-headers~.
+- Require ~X-Tools-CSRF: <token>~ (or the ~_csrf~ field); the token is HMAC-SHA256 keyed by
+  SHA-256 of the raw Access JWT, over a 10-minute bucket (current + previous accepted). Keying on the
+  JWT keeps it valid across replicas and adds no secret; an attacker cannot read the JWT to compute it.
 - Failure → ~403~ plus a logged ~request_id~. Public POSTs skip the token (no ambient credential) but
   keep the origin check.
 

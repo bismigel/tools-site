@@ -18,7 +18,7 @@ type Config struct {
 	Registry  *tool.Registry
 	BaseURL   string
 	Dev       bool
-	Auth      func(http.Handler) http.Handler
+	Access    *Verifier
 	Templates fs.FS // paths start at the repo root: web/templates/...
 	Static    fs.FS // rooted at web/static
 	CSS       []byte
@@ -86,8 +86,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /dev/reload", s.devReload)
 
 	// The gated zone exists only when a verifier is configured (FR-4.3).
-	if s.cfg.Auth != nil {
-		auth := s.cfg.Auth
+	if s.cfg.Access != nil {
+		auth := s.cfg.Access.Middleware
 		mux.Handle("GET /lab", auth(http.HandlerFunc(s.indexFor(tool.Gated))))
 		mux.Handle("GET /lab/{name}", auth(http.HandlerFunc(s.toolPageFor(tool.Gated))))
 		mux.Handle("POST /lab/{name}", auth(http.HandlerFunc(s.toolRunFor(tool.Gated))))

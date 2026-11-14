@@ -1,9 +1,10 @@
 {{define "form"}}
 <div id="tool-form">
   {{if .FormErr}}<p class="form-error" role="alert">{{.FormErr}}</p>{{end}}
-  <form method="post" action="/t/{{.Tool.Name}}"
-        hx-post="/t/{{.Tool.Name}}" hx-target="#result" hx-swap="innerHTML"
-        hx-indicator="#busy"{{if .Invalid}} data-invalid="true"{{end}}>
+  <form method="post" action="/{{if .CSRF}}lab{{else}}t{{end}}/{{.Tool.Name}}"
+        hx-post="/{{if .CSRF}}lab{{else}}t{{end}}/{{.Tool.Name}}" hx-target="#result" hx-swap="innerHTML"
+        hx-indicator="#busy"{{if .CSRF}} hx-headers='{"X-Tools-CSRF":"{{.CSRF}}"}'{{end}}{{if .Invalid}} data-invalid="true"{{end}}>
+    {{if .CSRF}}<input type="hidden" name="_csrf" value="{{.CSRF}}">{{end}}
     {{range .Controls}}
     <div class="form-row{{if .HasErr}} has-error{{end}}">
       <label for="f-{{.Name}}">{{.Label}}{{if .Required}} <span class="req" aria-hidden="true">*</span>{{end}}</label>

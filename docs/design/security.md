@@ -42,8 +42,12 @@ Access authenticates with a cookie, so a POST from another origin arrives authen
 
 - Require `Sec-Fetch-Site: same-origin` (or, if absent, an `Origin` header matching the configured
   base URL).
-- Require `X-Tools-CSRF: <token>` where the token is per-session, issued into the page and echoed by
-  htmx via `hx-headers`. Token = HMAC(session id from the JWT `sub` + per-process secret, 10 min).
+- Require `X-Tools-CSRF: <token>` (or the `_csrf` form field), issued into the page and echoed by
+  htmx via `hx-headers`. Token = HMAC-SHA256 **keyed by the raw Access JWT**, over a 10-minute bucket
+  (current and previous accepted). Keying on the JWT rather than a per-process secret is deliberate:
+  a random process secret would fail across replicas behind the Service, and keying on the JWT adds
+  no new secret. A cross-site attacker cannot compute it, because page script cannot read the JWT —
+  Cloudflare adds it as a request header. Implemented in `internal/web/auth.go`.
 - Reject with 403 and a logged `request_id`. Public POSTs need no token (no ambient credential to
   abuse) but still get the origin check.
 

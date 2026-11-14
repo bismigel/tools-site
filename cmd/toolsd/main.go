@@ -53,7 +53,13 @@ func main() {
 	register(tool.NewRateConverter(rates))
 	register(tool.NewMeetingPlanner())
 
-	cfg := web.Config{Registry: reg, BaseURL: *baseURL, Dev: *dev, Log: log}
+	access, err := buildAccess(log)
+	if err != nil {
+		log.Error("access configuration", "err", err)
+		os.Exit(1)
+	}
+
+	cfg := web.Config{Registry: reg, BaseURL: *baseURL, Dev: *dev, Log: log, Access: access}
 	if *dev {
 		cfg.Templates = os.DirFS(".")
 		cfg.Static = os.DirFS("web/static")
@@ -113,4 +119,22 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("stopped")
+}
+
+// buildAccess decides whether the gated zone exists at all (FR-4.3). With no
+// team domain/audience the routes are never mounted, which is safer than
+// mounting them and hoping.
+func buildAccess(log *slog.Logger) (*web.Verifier, error) {
+	team := os.Getenv("CF_ACCESS_TEAM_DOMAIN")
+	aud := os.Getenv("CF_ACCESS_AUD")
+
+	if os.Getenv("TOOLS_DEV_INSECURE") == "1" {
+		log.Warn("TOOLS_DEV_INSECURE=1: Access JWTs are NOT verified — development only")
+		return web.NewVerifier(web.AccessConfig{Bypass: true})
+	}
+	if team == "" || aud == "" {
+		log.Warn("CF_ACCESS_TEAM_DOMAIN/CF_ACCESS_AUD unset: gated routes are not mounted")
+		return nil, nil
+	}
+	return web.NewVerifier(web.AccessConfig{TeamDomain: team, Audience: aud})
 }
