@@ -5,8 +5,30 @@ step at a time and verify before the next. Values (tunnel id, account id, token)
 `~/projects/homelab-context/CREDENTIALS.md` — read them there, never copy them into a repo, an
 issue, or a chat log.
 
+## 0. ArgoCD registration — `bakuran-gitops`, one PR
+
+Three changes, prepared 2026-11-14 and left uncommitted for review:
+
+- [ ] `clusters/prod/apps/workloads/tools-site.yaml` — the Application (repo
+      `https://github.com/bismigel/tools-site`, path `deploy/k8s`, namespace `apps`)
+- [ ] `clusters/prod/projects/projects.yaml` — add the repo to `sourceRepos`; without it the sync
+      fails with `InvalidSpecError: … repo is not permitted`
+- [ ] `manifests/base/monitoring/ingress-host-check.yaml` — add `tools.ciceley.cc` to the **public**
+      list, in the same PR: the Ingress this Application creates is what makes the check pass
+
+Then, from a host that can reach the API server:
+
+- [ ] `argocd app get tools-site` → `Synced` / `Healthy`
+- [ ] `kubectl -n apps get pods -l app=tools-site -o wide` → 2/2 Ready, different nodes
+
+**On 2026-11-14 the dev box could not reach the cluster** (`https://192.168.2.82:6443` timed out),
+so that part runs on the cluster host, over SSH, or after fixing routing/VPN. Nothing above about
+tunnel or DNS is worth attempting until this section is green.
+
 ## Pre-flight
 
+- [ ] `argocd app get tools-site` → `Synced` / `Healthy` (a never-synced Application makes every
+      later symptom ambiguous)
 - [ ] `kubectl -n apps get ingress tools-site` → has an address
 - [ ] `kubectl -n apps port-forward svc/tools-site 8080:80` + `curl -sS localhost:8080/healthz` → `ok`
 - [ ] The in-cluster probe path works: from any pod,
@@ -28,12 +50,14 @@ If the pre-flight fails, **stop**. Cloudflare will only add a confusing error pa
 - [ ] `dig +short tools.ciceley.cc` returns Cloudflare addresses
 - [ ] `curl -sSI https://tools.ciceley.cc/` → 200; certificate is Cloudflare's wildcard/edge cert
 
-## 3. Access (M3b only)
+## 3. Access (M3b) — application already created 2026-11-14
 
-- [ ] Access application: `tools.ciceley.cc`, paths `/lab*` and `/api/lab*`
-- [ ] policy: allow, one-time PIN, owner's email (+ service token for scripts if needed)
-- [ ] team domain + AUD tag recorded into the app's ConfigMap (PR in this repo)
-- [ ] `curl -sSI https://tools.ciceley.cc/lab` → 302 to `https://<team>.cloudflareaccess.com/…`
+- [x] Access application **"Tools (private)"**: `tools.ciceley.cc/lab` and `/api/lab`, self-hosted,
+      24 h session, launcher visible
+- [x] policy **Owner**: allow `bismigel@pm.me` and `ciceleyrubio17@gmail.com`, OTP (no IdP pinned)
+- [x] team domain `bakuran.cloudflareaccess.com` + AUD recorded in `deploy/k8s/configmap.yaml`
+      (neither is a secret; the app verifies the signed JWT, never the email header)
+- [ ] `curl -sSI https://tools.ciceley.cc/lab` → 302 to `https://bakuran.cloudflareaccess.com/…`
 - [ ] `curl -sSI https://tools.ciceley.cc/` → 200 (public zone not challenged: the Access app must
       not accidentally cover `/*`)
 - [ ] from **inside** the cluster (bypasses Access), `curl -sS -H 'Host: tools.ciceley.cc'
