@@ -1,0 +1,12 @@
+.git
+.github
+bin
+docs
+*.md
+flake.nix
+flake.lock
+scripts
+Dockerfile
+.dockerignore
+# The theme submodule is only needed to *generate* theme/tools.css, which is committed.
+theme/hugo-theme-stack

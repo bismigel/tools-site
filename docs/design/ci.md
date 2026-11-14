@@ -13,23 +13,18 @@ pretending it ran.
 
 ## `check.yml` — pull requests
 
-```yaml
-on: { pull_request: { branches: [main] } }
-jobs:
-  go:
-    steps:
-      - checkout (submodules: recursive)   # theme submodule is needed for the CSS drift check
-      - setup-go (go-version-file: go.mod, cache: true)
-      - run: make css && git diff --exit-code theme/tools.css
-      - run: go vet ./...
-      - run: go test -race ./...
-      - run: go build ./...
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-  image:
-    steps: [checkout, docker build -t tools-site:check .]
-  manifests:
-    steps: [checkout, kustomize build deploy/k8s, kubeconform -strict -ignore-missing-schemas]
-```
+Implemented 2026-11-14. The workflow is deliberately thin: it installs the same pinned tools as the
+dev shell and then runs one command.
+
+- `actions/checkout` with `submodules: recursive` (the theme is needed for the CSS drift check)
+- `actions/setup-go` with `go-version-file: go.mod` (which carries `toolchain go1.27.4`)
+- `actions/setup-node` 24 — for the WebMCP shim test
+- `npm install --global sass@1.107.1` and `go install golang.org/x/vuln/cmd/govulncheck@v1.1.4`
+  (pinned to the same versions as `flake.nix`, so local and CI cannot drift)
+- `make ci` → `scripts/ci.sh`: CSS drift, gofmt, vet, `go test -race`, JS tests, build, govulncheck
+- `make image` — proves the Dockerfile on a machine that is not the author's
+
+The `deploy/k8s` render + `kubeconform` step is added at M3, when that directory exists.
 
 Rationale for each:
 
@@ -46,13 +41,16 @@ Everything must pass before merge. `main` itself is protected by review.
 
 ## `release.yml` — push to `main`
 
-```yaml
-on:
-  push: { branches: [main], paths-ignore: ["deploy/**", "docs/**", "**.md", "theme/tools.css"] }
-  workflow_dispatch: {}
-concurrency: { group: release-${{ github.ref }}, cancel-in-progress: false }
-permissions: { contents: write, packages: write, pull-requests: write }
-```
+Implemented 2026-11-14: compute `TAG=main-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}`, log in to
+GHCR with `GITHUB_TOKEN`, `make image IMAGE=…`, push `:TAG` and `:latest`, then open a PR with `gh`
+that rewrites the image line in `deploy/k8s/deployment.yaml`.
+
+`paths-ignore` (`deploy/**`, `docs/**`, `**.md`, `theme/tools.css`) is load-bearing: without it,
+merging the bump PR starts another release, which opens another bump PR, forever.
+
+**Until M3** there is no `deployment.yaml`, so the bump step is guarded by
+`if: hashFiles('deploy/k8s/deployment.yaml') != ''`: the image is still published, and the bump PR
+begins as soon as the manifest lands.
 
 Steps: compute `TAG=main-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}` → docker login → build + push
 `:TAG` and `:latest` → **open a PR** that `sed`s the image line in `deploy/k8s/deployment.yaml`.
@@ -68,6 +66,9 @@ Why a PR and not a direct push (`docs/adr/0006-manifest-bump-via-pr.md`):
 would open another bump PR, forever. The template learned this; keep the comment explaining it.
 
 ## Guardrails worth copying from the estate
+
+- The PR workflow calls `scripts/ci.sh`, not a copy of its steps: one definition of green.
+
 
 - Nothing in CI holds cluster credentials. ArgoCD pulls; CI never pushes to the cluster.
 - Secrets: only `GITHUB_TOKEN`. No PATs, no Cloudflare tokens, no Notion keys in Actions.

@@ -818,6 +818,9 @@ Shift left: the workflow runs ~scripts/ci.sh~, and ~make ci~ runs the same scrip
 local run means a green PR apart from Docker and network differences. One source of truth, not two.
 #+END_QUOTE
 
+Steps: checkout (submodules) → setup-go from ~go.mod~ → setup-node 24 → install pinned
+~sass@1.107.1~ and ~govulncheck@v1.1.4~ (same versions as ~flake.nix~) → ~make ci~ → ~make image~.
+The ~deploy/k8s~ render and ~kubeconform~ step is added at M3.
 1. checkout (submodules recursive — the theme is needed for the CSS drift check);
 2. ~make css && git diff --exit-code theme/tools.css~;
 3. ~go vet ./...~;
@@ -834,6 +837,9 @@ local run means a green PR apart from Docker and network differences. One source
 - Tag ~main-<YYYYmmdd-HHMMSS>-<sha7>~ plus ~:latest~; push to GHCR.
 - Open a PR that updates the image line in ~deploy/k8s/deployment.yaml~ (never a direct push: GH013).
 - No auto-merge; no cluster credentials in CI; ~workflow_dispatch~ always available.
+- Until M3 there is no ~deployment.yaml~: the bump step is guarded by
+  ~if: hashFiles('deploy/k8s/deployment.yaml') != ''~, so the image still publishes and the bump PR
+  starts as soon as the manifest lands.
 
 ** 10.3 ~fx-refresh.yml~
 

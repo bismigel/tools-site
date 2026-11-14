@@ -1,0 +1,75 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    # Without this, merging the image-bump PR starts another release, which opens
+    # another bump PR, forever. Learned from homelab-app-template.
+    paths-ignore:
+      - "deploy/**"
+      - "docs/**"
+      - "**.md"
+      - "theme/tools.css"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - id: tag
+        name: compute tag
+        run: echo "value=main-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.value }}
+        run: |
+          make image IMAGE="$IMAGE"
+          docker push "$IMAGE"
+          docker tag "$IMAGE" "ghcr.io/${{ github.repository }}:latest"
+          docker push "ghcr.io/${{ github.repository }}:latest"
+
+      # Until M3 there is no Deployment to bump; the image is still published.
+      - name: open image-bump PR (only once deploy/k8s exists)
+        if: ${{ hashFiles('deploy/k8s/deployment.yaml') != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          sed -i -E "s#image: ghcr.io/[^ ]+/tools-site:[^ ]+#image: ghcr.io/${GITHUB_REPOSITORY}:${TAG}#" \
+            deploy/k8s/deployment.yaml
+          branch="bump-image-${TAG}"
+          git checkout -b "$branch"
+          git commit -am "deploy: bump tools-site image to ${TAG}"
+          git push origin "$branch"
+          gh pr create \
+            --title "deploy: bump tools-site image to ${TAG}" \
+            --body "Automated by release.yml. Image: \`ghcr.io/${GITHUB_REPOSITORY}:${TAG}\`" \
+            --base main --head "$branch"

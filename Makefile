@@ -3,16 +3,21 @@ GO ?= go
 SASS ?= sass
 ADDR ?= :8080
 BIN := bin/toolsd
+CONTAINER ?= docker
+IMAGE ?= tools-site:check
 THEME := theme/hugo-theme-stack
 TOOL ?= slugify
 TEXT ?= Hello, World!
 
-.PHONY: all build css css-watch run dev list call test vet fmt-check check ci css-check vuln clean
+.PHONY: all image build css css-watch run dev list call test vet fmt-check check ci css-check vuln clean
 
 all: build
 
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN) ./cmd/toolsd
+
+image:
+	$(CONTAINER) build -t $(IMAGE) .
 
 # Deterministic: pinned theme + copied palette -> theme/tools.css (docs/design/theme.md)
 css:
