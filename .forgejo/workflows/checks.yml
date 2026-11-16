@@ -1,0 +1,49 @@
+# CI on the estate's own hardware (ADR 0015).
+#
+# What runs here, and what does not - because the GitHub workflow did more and pretending otherwise would be worse than
+# saying it.
+#
+#   manifests      yes. Every kustomize overlay renders, which catches the mistake this repository actually made once:
+#                  a base/overlay split that left a check pointing at the old path for days.
+#   make ci        NOT here. It is a Go build, a Node/npm build, dart-sass, govulncheck and a Playwright end-to-end suite.
+#                  The runner has none of those toolchains and no browser, and adding them would make a shared homelab
+#                  runner into a Go/Node build farm. Ticket: 14.7 in homelab-context.
+#   make image     NOT here either, for the same reason: the image is built by `make`, not by a Dockerfile alone.
+#
+# So this repository is migrated as an origin, and its deep checks stay a workstation job until the toolchain question is
+# answered. The alternative - a workflow that looks green while testing almost nothing - is what this estate's rules are
+# written against.
+name: checks
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  manifests:
+    runs-on: in-cluster
+    timeout-minutes: 10
+    steps:
+      - name: Clone, then render every overlay
+        env:
+          REPO_READ_TOKEN: ${{ secrets.REPO_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          exec 3>&1
+          {
+            GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 \
+              "http://bismigel:${REPO_READ_TOKEN}@forgejo.forgejo.svc.cluster.local:3000/bismigel/tools-site.git" .
+            # deploy/k8s is a single directory here; render it, and any overlay under it if the layout grows.
+            rendered=0
+            for d in deploy/k8s deploy/overlays/*/; do
+              [ -d "$d" ] || continue
+              kustomize build "$d" >/dev/null && echo "manifests OK: $d"
+              rendered=$((rendered + 1))
+            done
+            [ "$rendered" -gt 0 ] || { echo "nothing to render under deploy/"; exit 1; }
+          } > /tmp/check.log 2>&1 || { echo "check failed:"; tail -40 /tmp/check.log >&3; exit 1; }
+          tail -4 /tmp/check.log >&3
